@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Changelog del security-service: solo los esquemas que le pertenecen (security, audit), ADR-009.
+  Los archivos corren en el orden de esta lista, no alfabéticamente (06-data/migration-strategy.md).
+  Cada changeset tiene una precondición, así se marca como ejecutado en vez de fallar cuando el
+  script completo lavarapido-6-services-sqlserver.sql ya creó el objeto.
+-->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <include file="db/changelog/001-create-security-schemas.sql"/>
+    <include file="db/changelog/002-create-security-and-audit-core.sql"/>
+    <include file="db/changelog/003-create-security-user-preference.sql"/>
+    <include file="db/changelog/seed/101-seed-security-role.sql"/>
+
+</databaseChangeLog>

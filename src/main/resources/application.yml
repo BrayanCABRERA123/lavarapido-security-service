@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: security-service
+  # En local se usa el perfil dev salvo que SPRING_PROFILES_ACTIVE diga otra cosa.
+  profiles:
+    default: dev
+  # Los secretos locales viven en lavarapido-infra/.env (no se sube), compartido con docker compose.
+  # Un .env propio en la carpeta del servicio tiene prioridad. Las variables de entorno reales
+  # siempre ganan sobre estos archivos.
+  config:
+    import:
+      - optional:file:../lavarapido-infra/.env[.properties]
+      - optional:file:.env[.properties]
+
+  datasource:
+    url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=LavaRapido;encrypt=true;trustServerCertificate=true}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate   # el esquema lo maneja Liquibase; Hibernate solo valida que el mapeo coincida
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        type:
+          preferred_instant_jdbc_type: TIMESTAMP
+        use_nationalized_character_data: true
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    # Una tabla de changelog por servicio: los seis servicios migran la misma base de datos.
+    database-change-log-table: DATABASECHANGELOG_SECURITY
+    database-change-log-lock-table: DATABASECHANGELOGLOCK_SECURITY
+
+server:
+  port: ${PORT:3001}
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:}
+    issuer: ${JWT_ISSUER:lavarapido-security-service}
+    audience: ${JWT_AUDIENCE:lavarapido-api}
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:1h}
+  password:
+    bcrypt-strength: 12
+  password-recovery:
+    code-ttl: 15m
+    max-failed-attempts: 5
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+info:
+  service: security-service
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name},%X{correlationId:-}]"
