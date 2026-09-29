@@ -20,6 +20,7 @@ import com.lavarapido.security.infrastructure.adapter.in.web.dto.ResetPasswordRe
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.UserResponse;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.VerifyResetCodeRequest;
 import jakarta.servlet.http.HttpServletRequest;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -36,6 +37,7 @@ import java.time.Duration;
 import java.time.Instant;
 
 /** Endpoints públicos de identidad: registro, login, logout y recuperación de contraseña. */
+@Tag(name = "Auth", description = "Registro, login, logout y recuperación de contraseña")
 @RestController
 @RequestMapping("/api/v1/auth")
 class AuthController {

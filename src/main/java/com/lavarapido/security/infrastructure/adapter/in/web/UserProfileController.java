@@ -13,6 +13,7 @@ import com.lavarapido.security.infrastructure.adapter.in.web.dto.PreferencesRequ
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.PreferencesResponse;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.UpdateProfileRequest;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.UserResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
  * La cuenta propia de quien llama. El id del usuario siempre sale del token verificado, nunca de
  * la URL ni del cuerpo, así nadie puede leer ni editar el perfil de otro (regla de propiedad, ADR-006).
  */
+@Tag(name = "My account", description = "Perfil, contraseña y preferencias del usuario con sesión")
 @RestController
 @RequestMapping("/api/v1/users/me")
 class UserProfileController {

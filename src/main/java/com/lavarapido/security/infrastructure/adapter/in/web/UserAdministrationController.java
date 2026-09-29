@@ -10,6 +10,7 @@ import com.lavarapido.security.infrastructure.adapter.in.web.dto.CreateUserReque
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.PageResponse;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.UpdateStatusRequest;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.UserResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Gestión de cuentas. {@code /api/v1/admin/**} exige el rol ADMIN (SecurityConfig). */
+@Tag(name = "Admin - users", description = "Gestión de cuentas (solo ADMIN)")
 @RestController
 @RequestMapping("/api/v1/admin/users")
 class UserAdministrationController {

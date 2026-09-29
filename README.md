@@ -17,6 +17,9 @@ cd ../security-service
 
 Secrets are read from `../lavarapido-infra/.env`; a `.env` in this folder overrides it.
 
+**Swagger UI:** http://localhost:3001/swagger-ui.html (dev profile only; disabled elsewhere).
+Log in with `POST /api/v1/auth/login`, copy the `accessToken`, click **Authorize** and paste it.
+
 ## API (`/api/v1`)
 
 | Method | Path | Access | Purpose |
