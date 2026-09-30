@@ -70,7 +70,9 @@ infrastructure/  adapter/in/web, adapter/out/{persistence,security,notification,
 
 ## Known limitations
 
-- Recovery codes are only printed to the log (dev); an email/SMS channel is pending.
+- Recovery codes go by email over SMTP when `MAIL_ENABLED=true` (Gmail, Brevo, or Mailpit in dev);
+  otherwise they are printed to the log (dev profile only). Other system emails belong to the
+  future `notification-service`.
 - The failed-guess counter is in memory: fine for one instance, needs Redis with replicas.
 - Tokens cannot be revoked before expiry (ADR-006 trade-off); logout only records the session end.
 - No login rate limiting here: it belongs to the API Gateway (ADR-005).
