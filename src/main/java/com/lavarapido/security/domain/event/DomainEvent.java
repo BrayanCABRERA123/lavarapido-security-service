@@ -5,7 +5,7 @@ import java.time.Instant;
 /** Algo que pasó en el contexto de identidad y que puede interesarle a otros contextos. */
 public interface DomainEvent {
 
-    /** Routing key / tópico con el que se publica el evento, ej. {@code security.user.registered}. */
+    /** Routing key con el que se publica el evento (cross-cutting.md §7), ej. {@code security.user_registered}. */
     String eventType();
 
     Instant occurredAt();

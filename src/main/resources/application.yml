@@ -29,6 +29,13 @@ spring:
           preferred_instant_jdbc_type: TIMESTAMP
         use_nationalized_character_data: true
 
+  # RabbitMQ (ADR-004): solo se conecta si MESSAGING_ENABLED=true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
   # SMTP para el código de recuperación. Solo se usa si app.mail.enabled=true (MAIL_ENABLED).
   # Gmail: smtp.gmail.com:587 + contraseña de aplicación. Mailpit (dev): localhost:1025.
   mail:
@@ -75,6 +82,9 @@ security:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  messaging:
+    # false: los eventos solo van al log. true: se publican en RabbitMQ (ADR-004)
+    enabled: ${MESSAGING_ENABLED:false}
   mail:
     # false: el código sale en el log (dev). true: se envía por correo al usuario.
     enabled: ${MAIL_ENABLED:false}
@@ -100,6 +110,9 @@ management:
   health:
     mail:
       enabled: false
+    # sin mensajería encendida, RabbitMQ no se revisa
+    rabbit:
+      enabled: ${MESSAGING_ENABLED:false}
   info:
     env:
       enabled: true

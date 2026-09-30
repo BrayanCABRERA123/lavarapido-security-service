@@ -62,6 +62,12 @@
 			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
 
+		<!-- Mensajería: publica los eventos de dominio en RabbitMQ (ADR-004) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-amqp</artifactId>
+		</dependency>
+
 		<!-- Documentación de la API: OpenAPI + Swagger UI -->
 		<dependency>
 			<groupId>org.springdoc</groupId>

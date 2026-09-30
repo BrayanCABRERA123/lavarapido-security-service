@@ -24,6 +24,7 @@ public record UserRegistered(long userId, long personId, Set<RoleCode> roles, In
 
     @Override
     public String eventType() {
-        return "security.user.registered";
+        // routing key de cross-cutting.md §7: <esquema>.<evento_en_snake_case>
+        return "security.user_registered";
     }
 }
