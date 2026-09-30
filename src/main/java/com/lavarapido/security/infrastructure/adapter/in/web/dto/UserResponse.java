@@ -15,11 +15,12 @@ public record UserResponse(
         String phone,
         List<String> roles,
         boolean active,
-        Instant lastLogin) {
+        Instant lastLogin,
+        long personId) {
 
     public static UserResponse from(UserAccountView view) {
         return new UserResponse(view.id(), view.email(), view.documentNumber(), view.firstName(), view.lastName(),
                 view.phone(), view.roles().stream().map(RoleCode::name).sorted().toList(), view.active(),
-                view.lastLogin());
+                view.lastLogin(), view.personId());
     }
 }

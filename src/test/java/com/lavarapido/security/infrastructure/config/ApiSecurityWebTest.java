@@ -95,7 +95,7 @@ class ApiSecurityWebTest {
     @MockitoBean private ChangeEmailUseCase changeEmail;
 
     private static final UserAccountView ANA = new UserAccountView(42L, "ana@gmail.com", "1023456789", "Ana",
-            "Pérez", "3001234567", Set.of(RoleCode.CLIENT), true, null);
+            "Pérez", "3001234567", Set.of(RoleCode.CLIENT), true, null, 7L);
 
     private String token(long userId, List<String> roles, String issuer, Instant expiresAt) {
         JwtClaimsSet claims = JwtClaimsSet.builder()
