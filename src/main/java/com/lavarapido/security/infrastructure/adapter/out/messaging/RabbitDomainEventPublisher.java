@@ -93,14 +93,17 @@ class RabbitDomainEventPublisher implements DomainEventPublisher {
     }
 
     /**
-     * Payload de cada evento publicado: solo ids, nunca datos personales (el correo o el nombre
-     * los pide cada consumidor si los necesita). null = evento que todavía no se publica.
+     * Payload de cada evento publicado: ids y lo mínimo que un consumidor documentado necesita
+     * (ADR-011: correo y primer nombre para el correo de bienvenida). null = evento que todavía
+     * no se publica.
      */
     private static Map<String, Object> payloadOf(DomainEvent event) {
         if (event instanceof UserRegistered registered) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("userId", registered.userId());
             payload.put("personId", registered.personId());
+            payload.put("email", registered.email());
+            payload.put("firstName", registered.firstName());
             payload.put("roles", registered.roles().stream().map(Enum::name).sorted().toList());
             return payload;
         }
