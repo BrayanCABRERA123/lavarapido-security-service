@@ -56,6 +56,12 @@
 			<scope>runtime</scope>
 		</dependency>
 
+		<!-- Envío de correos (código de recuperación de contraseña) por SMTP -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+
 		<!-- Documentación de la API: OpenAPI + Swagger UI -->
 		<dependency>
 			<groupId>org.springdoc</groupId>

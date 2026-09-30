@@ -5,6 +5,7 @@ import com.lavarapido.security.domain.model.PersonName;
 import com.lavarapido.security.domain.port.out.ResetCodeNotifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,8 @@ import java.time.Instant;
  */
 @Component
 @Profile("dev")
+// Solo cuando el envío por correo está apagado (app.mail.enabled=false).
+@ConditionalOnProperty(prefix = "app.mail", name = "enabled", havingValue = "false", matchIfMissing = true)
 class LoggingResetCodeNotifier implements ResetCodeNotifier {
 
     private static final Logger log = LoggerFactory.getLogger(LoggingResetCodeNotifier.class);
