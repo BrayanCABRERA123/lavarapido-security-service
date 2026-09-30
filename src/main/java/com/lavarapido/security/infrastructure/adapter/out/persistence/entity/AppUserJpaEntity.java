@@ -31,7 +31,7 @@ public class AppUserJpaEntity {
     @JoinColumn(name = "person_id", nullable = false, updatable = false)
     private PersonJpaEntity person;
 
-    @Column(name = "username", nullable = false, length = 60, updatable = false)
+    @Column(name = "username", nullable = false, length = 60)
     private String username;
 
     @Column(name = "password_hash", nullable = false, length = 255)
@@ -69,6 +69,10 @@ public class AppUserJpaEntity {
 
     public String getUsername() {
         return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
     }
 
     public String getPasswordHash() {

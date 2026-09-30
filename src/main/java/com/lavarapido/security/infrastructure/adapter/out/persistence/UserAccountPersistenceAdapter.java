@@ -75,6 +75,7 @@ class UserAccountPersistenceAdapter implements UserAccountRepository {
                         () -> new IllegalStateException("Account " + account.id() + " vanished while being updated"));
 
         copyPerson(account.person(), entity.getPerson());
+        entity.setUsername(account.username().value());
         entity.setPasswordHash(account.passwordHash().value());
         entity.setActive(account.isActive());
         entity.setLastLogin(account.lastLogin());

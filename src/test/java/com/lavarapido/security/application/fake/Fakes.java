@@ -142,6 +142,17 @@ public final class Fakes {
                         session.ipAddress(), revokedAt));
             }
         }
+
+        @Override
+        public void revokeAll(long userId, Instant revokedAt) {
+            sessions.keySet().forEach(sessionId -> revoke(sessionId, userId, revokedAt));
+        }
+
+        public long openSessionsOf(long userId) {
+            return sessions.values().stream()
+                    .filter(session -> session.userId() == userId && session.revokedAt() == null)
+                    .count();
+        }
     }
 
     public static class FakeTokenIssuer implements TokenIssuer {

@@ -7,8 +7,10 @@ import com.lavarapido.security.domain.model.RoleCode;
 import com.lavarapido.security.domain.port.in.AuthenticateUserUseCase;
 import com.lavarapido.security.domain.port.in.AuthenticationResult;
 import com.lavarapido.security.domain.port.in.ChangeAccountStatusUseCase;
+import com.lavarapido.security.domain.port.in.ChangeEmailUseCase;
 import com.lavarapido.security.domain.port.in.ChangePasswordUseCase;
 import com.lavarapido.security.domain.port.in.CreateUserAccountUseCase;
+import com.lavarapido.security.domain.port.in.DeactivateOwnAccountUseCase;
 import com.lavarapido.security.domain.port.in.GetUserPreferencesUseCase;
 import com.lavarapido.security.domain.port.in.GetUserProfileUseCase;
 import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase;
@@ -89,6 +91,8 @@ class ApiSecurityWebTest {
     @MockitoBean private CreateUserAccountUseCase createAccount;
     @MockitoBean private ListUserAccountsUseCase listAccounts;
     @MockitoBean private ChangeAccountStatusUseCase changeStatus;
+    @MockitoBean private DeactivateOwnAccountUseCase deactivateOwnAccount;
+    @MockitoBean private ChangeEmailUseCase changeEmail;
 
     private static final UserAccountView ANA = new UserAccountView(42L, "ana@gmail.com", "1023456789", "Ana",
             "Pérez", "3001234567", Set.of(RoleCode.CLIENT), true, null);
@@ -237,5 +241,20 @@ class ApiSecurityWebTest {
         mvc.perform(post("/api/v1/auth/password/forgot").header("X-Correlation-Id", "bad\nid")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"email\":\"ana@gmail.com\"}"))
                 .andExpect(header().string("X-Correlation-Id", org.hamcrest.Matchers.not("bad\nid")));
+    }
+
+    @Test
+    void closingTheOwnAccountNeedsAToken() throws Exception {
+        mvc.perform(post("/api/v1/users/me/deactivate").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"Lavado2026!\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void closingTheOwnAccountUsesTheUserFromTheToken() throws Exception {
+        mvc.perform(post("/api/v1/users/me/deactivate").header("Authorization", "Bearer " + validToken(List.of("CLIENT")))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"currentPassword\":\"Lavado2026!\"}"))
+                .andExpect(status().isNoContent());
+        verify(deactivateOwnAccount).deactivateOwnAccount(any());
     }
 }

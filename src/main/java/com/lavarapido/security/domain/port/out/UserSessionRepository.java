@@ -10,4 +10,7 @@ public interface UserSessionRepository {
 
     /** Marca la sesión como cerrada. No hace nada si no es del usuario o ya estaba cerrada. */
     void revoke(long sessionId, long userId, Instant revokedAt);
+
+    /** Cierra todas las sesiones abiertas del usuario (cuenta desactivada: sale de todos los equipos). */
+    void revokeAll(long userId, Instant revokedAt);
 }

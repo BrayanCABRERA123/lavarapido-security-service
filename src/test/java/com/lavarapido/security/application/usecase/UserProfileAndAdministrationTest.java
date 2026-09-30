@@ -1,17 +1,26 @@
 package com.lavarapido.security.application.usecase;
 
+import com.lavarapido.security.application.fake.Fakes.FakeTokenIssuer;
+import com.lavarapido.security.application.fake.Fakes.InMemoryUserSessionRepository;
 import com.lavarapido.security.application.fake.Fakes.MutableClock;
 import com.lavarapido.security.application.fake.Fakes.PlainPasswordHasher;
 import com.lavarapido.security.application.fake.Fakes.RecordingEventPublisher;
 import com.lavarapido.security.application.fake.InMemoryUserAccountRepository;
+import com.lavarapido.security.domain.event.AccountDeactivated;
 import com.lavarapido.security.domain.event.PasswordChanged;
+import com.lavarapido.security.domain.exception.AccountDisabledException;
 import com.lavarapido.security.domain.exception.CannotDisableOwnAccountException;
+import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
+import com.lavarapido.security.domain.exception.InvalidCredentialsException;
 import com.lavarapido.security.domain.exception.IncorrectCurrentPasswordException;
 import com.lavarapido.security.domain.exception.SamePasswordException;
 import com.lavarapido.security.domain.exception.UserNotFoundException;
 import com.lavarapido.security.domain.model.PageResult;
 import com.lavarapido.security.domain.model.RoleCode;
+import com.lavarapido.security.domain.port.in.AuthenticateUserUseCase.LoginCommand;
+import com.lavarapido.security.domain.port.in.ChangeEmailUseCase.ChangeEmailCommand;
 import com.lavarapido.security.domain.port.in.ChangePasswordUseCase.ChangePasswordCommand;
+import com.lavarapido.security.domain.port.in.DeactivateOwnAccountUseCase.DeactivateOwnAccountCommand;
 import com.lavarapido.security.domain.port.in.CreateUserAccountUseCase.CreateUserAccountCommand;
 import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase.ListUserAccountsQuery;
 import com.lavarapido.security.domain.port.in.RegisterUserUseCase.RegisterUserCommand;
@@ -34,6 +43,9 @@ class UserProfileAndAdministrationTest {
     private final PlainPasswordHasher hasher = new PlainPasswordHasher();
     private final RecordingEventPublisher events = new RecordingEventPublisher();
     private final MutableClock clock = new MutableClock(Instant.parse("2026-09-29T15:00:00Z"));
+    private final InMemoryUserSessionRepository sessions = new InMemoryUserSessionRepository();
+    private final AuthenticationService authentication =
+            new AuthenticationService(accounts, sessions, hasher, new FakeTokenIssuer(), clock);
     private final AccountRegistrationService registration =
             new AccountRegistrationService(accounts, hasher, new PasswordPolicy(), new RecordingEventPublisher(), clock);
 
@@ -89,7 +101,7 @@ class UserProfileAndAdministrationTest {
     @Nested
     class Administration {
 
-        private final UserAdministrationService service = new UserAdministrationService(accounts);
+        private final UserAdministrationService service = new UserAdministrationService(accounts, sessions, events, clock);
 
         @Test
         void listsAccountsFilteredByRole() {
@@ -120,6 +132,96 @@ class UserProfileAndAdministrationTest {
         void anAdministratorCannotDisableThemselves() {
             assertThatThrownBy(() -> service.changeStatus(anaId, false, anaId))
                     .isInstanceOf(CannotDisableOwnAccountException.class);
+        }
+    }
+
+    @Nested
+    class Deactivation {
+
+        private final AccountDeactivationService service =
+                new AccountDeactivationService(accounts, sessions, hasher, events, clock);
+
+        private void login() {
+            authentication.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null));
+        }
+
+        @Test
+        void closingTheAccountRequiresTheCurrentPassword() {
+            assertThatThrownBy(() -> service.deactivateOwnAccount(new DeactivateOwnAccountCommand(anaId, "Wrong2026!")))
+                    .isInstanceOf(IncorrectCurrentPasswordException.class);
+            assertThat(accounts.findById(anaId).orElseThrow().isActive()).isTrue();
+        }
+
+        @Test
+        void aClosedAccountCannotLogInAgainAndLosesItsSessions() {
+            login();
+            login();
+
+            service.deactivateOwnAccount(new DeactivateOwnAccountCommand(anaId, "Lavado2026!"));
+
+            assertThat(sessions.openSessionsOf(anaId)).isZero();
+            assertThatThrownBy(this::login).isInstanceOf(AccountDisabledException.class);
+            assertThat(events.events).singleElement().isInstanceOf(AccountDeactivated.class);
+        }
+
+        @Test
+        void theAccountIsKeptNotDeleted() {
+            service.deactivateOwnAccount(new DeactivateOwnAccountCommand(anaId, "Lavado2026!"));
+
+            assertThat(accounts.findById(anaId)).isPresent();
+        }
+
+        @Test
+        void anAdministratorDisablingSomeoneAlsoClosesTheirSessions() {
+            login();
+
+            new UserAdministrationService(accounts, sessions, events, clock).changeStatus(anaId, false, 500);
+
+            assertThat(sessions.openSessionsOf(anaId)).isZero();
+            assertThat(events.events).singleElement().isInstanceOf(AccountDeactivated.class);
+        }
+    }
+
+    @Nested
+    class EmailChange {
+
+        private final EmailChangeService service = new EmailChangeService(accounts, hasher, events, clock);
+
+        @Test
+        void requiresTheCurrentPassword() {
+            assertThatThrownBy(() -> service.changeEmail(new ChangeEmailCommand(anaId, "ana.nueva@gmail.com", "Wrong2026!")))
+                    .isInstanceOf(IncorrectCurrentPasswordException.class);
+        }
+
+        @Test
+        void cannotTakeAnEmailThatBelongsToSomeoneElse() {
+            registration.register(new RegisterUserCommand("80000001", "Luis", "Gómez", "luis@gmail.com", null,
+                    "Lavado2026!"));
+
+            assertThatThrownBy(() -> service.changeEmail(new ChangeEmailCommand(anaId, "luis@gmail.com", "Lavado2026!")))
+                    .isInstanceOf(EmailAlreadyRegisteredException.class);
+        }
+
+        @Test
+        void afterTheChangeTheNewEmailLogsInAndTheOldOneDoesNot() {
+            UserAccountView view = service.changeEmail(new ChangeEmailCommand(anaId, "Ana.Nueva@Gmail.com", "Lavado2026!"));
+
+            assertThat(view.email()).isEqualTo("ana.nueva@gmail.com");
+            assertThat(authentication.login(new LoginCommand("ana.nueva@gmail.com", "Lavado2026!", null, null))
+                    .user().id()).isEqualTo(anaId);
+            assertThatThrownBy(() -> authentication.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null)))
+                    .isInstanceOf(InvalidCredentialsException.class);
+        }
+
+        @Test
+        void aPasswordChangedFromTheProfileIsTheOneThatLogsIn() {
+            new UserProfileService(accounts, hasher, new PasswordPolicy(), events, clock)
+                    .changePassword(new ChangePasswordCommand(anaId, "Lavado2026!", "Nueva2026!"));
+
+            assertThat(authentication.login(new LoginCommand("ana@gmail.com", "Nueva2026!", null, null)).user().id())
+                    .isEqualTo(anaId);
+            assertThatThrownBy(() -> authentication.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null)))
+                    .isInstanceOf(InvalidCredentialsException.class);
         }
     }
 }

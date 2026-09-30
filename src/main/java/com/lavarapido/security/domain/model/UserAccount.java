@@ -15,7 +15,7 @@ import java.util.Set;
  * <p>Invariantes:
  * <ul>
  *   <li>Una cuenta por persona (lo valida el caso de uso, respaldado por {@code uq_app_user_person}).</li>
- *   <li>El usuario es el correo y nunca cambia.</li>
+ *   <li>El usuario es el correo. Solo cambia con {@link #changeEmail}, que actualiza también el de la persona.</li>
  *   <li>Una cuenta siempre tiene al menos un rol.</li>
  *   <li>Una cuenta desactivada no puede autenticarse.</li>
  * </ul>
@@ -27,7 +27,7 @@ public final class UserAccount {
 
     private final Long id;
     private final Person person;
-    private final EmailAddress username;
+    private EmailAddress username;
     private HashedPassword passwordHash;
     private boolean active;
     private Instant lastLogin;
@@ -37,10 +37,7 @@ public final class UserAccount {
                         boolean active, Instant lastLogin, Set<RoleCode> roles) {
         this.id = id;
         this.person = Objects.requireNonNull(person, "person");
-        this.username = Objects.requireNonNull(username, "username");
-        if (username.value().length() > MAX_USERNAME_LENGTH) {
-            throw new InvalidValueException("INVALID_EMAIL", "Email is too long to be used as a login");
-        }
+        this.username = requireLoginEmail(username);
         this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash");
         this.active = active;
         this.lastLogin = lastLogin;
@@ -74,6 +71,23 @@ public final class UserAccount {
     public void recordSuccessfulLogin(Instant at) {
         ensureCanAuthenticate();
         this.lastLogin = Objects.requireNonNull(at, "at");
+    }
+
+    /**
+     * Cambia el correo con el que se inicia sesión. El caso de uso verifica antes la contraseña
+     * y que el correo no esté tomado por otra cuenta.
+     */
+    public void changeEmail(EmailAddress newEmail) {
+        this.username = requireLoginEmail(newEmail);
+        person.changeEmail(newEmail);
+    }
+
+    private static EmailAddress requireLoginEmail(EmailAddress email) {
+        Objects.requireNonNull(email, "username");
+        if (email.value().length() > MAX_USERNAME_LENGTH) {
+            throw new InvalidValueException("INVALID_EMAIL", "Email is too long to be used as a login");
+        }
+        return email;
     }
 
     public void changePassword(HashedPassword newHash) {

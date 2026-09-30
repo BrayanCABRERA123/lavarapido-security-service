@@ -1,14 +1,20 @@
 package com.lavarapido.security.infrastructure.adapter.in.web;
 
+import com.lavarapido.security.domain.port.in.ChangeEmailUseCase;
+import com.lavarapido.security.domain.port.in.ChangeEmailUseCase.ChangeEmailCommand;
 import com.lavarapido.security.domain.port.in.ChangePasswordUseCase;
 import com.lavarapido.security.domain.port.in.ChangePasswordUseCase.ChangePasswordCommand;
+import com.lavarapido.security.domain.port.in.DeactivateOwnAccountUseCase;
+import com.lavarapido.security.domain.port.in.DeactivateOwnAccountUseCase.DeactivateOwnAccountCommand;
 import com.lavarapido.security.domain.port.in.GetUserPreferencesUseCase;
 import com.lavarapido.security.domain.port.in.GetUserProfileUseCase;
 import com.lavarapido.security.domain.port.in.UpdateUserPreferencesUseCase;
 import com.lavarapido.security.domain.port.in.UpdateUserPreferencesUseCase.UpdatePreferencesCommand;
 import com.lavarapido.security.domain.port.in.UpdateUserProfileUseCase;
 import com.lavarapido.security.domain.port.in.UpdateUserProfileUseCase.UpdateProfileCommand;
+import com.lavarapido.security.infrastructure.adapter.in.web.dto.ChangeEmailRequest;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.ChangePasswordRequest;
+import com.lavarapido.security.infrastructure.adapter.in.web.dto.DeactivateAccountRequest;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.PreferencesRequest;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.PreferencesResponse;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.UpdateProfileRequest;
@@ -20,6 +26,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,15 +47,20 @@ class UserProfileController {
     private final ChangePasswordUseCase changePassword;
     private final GetUserPreferencesUseCase getPreferences;
     private final UpdateUserPreferencesUseCase updatePreferences;
+    private final DeactivateOwnAccountUseCase deactivateOwnAccount;
+    private final ChangeEmailUseCase changeEmail;
 
     UserProfileController(GetUserProfileUseCase getProfile, UpdateUserProfileUseCase updateProfile,
                           ChangePasswordUseCase changePassword, GetUserPreferencesUseCase getPreferences,
-                          UpdateUserPreferencesUseCase updatePreferences) {
+                          UpdateUserPreferencesUseCase updatePreferences,
+                          DeactivateOwnAccountUseCase deactivateOwnAccount, ChangeEmailUseCase changeEmail) {
         this.getProfile = getProfile;
         this.updateProfile = updateProfile;
         this.changePassword = changePassword;
         this.getPreferences = getPreferences;
         this.updatePreferences = updatePreferences;
+        this.deactivateOwnAccount = deactivateOwnAccount;
+        this.changeEmail = changeEmail;
     }
 
     @GetMapping
@@ -69,6 +81,13 @@ class UserProfileController {
                 request.newPassword()));
     }
 
+    /** Cambia el correo de login. Desde ahí se inicia sesión con el correo nuevo. */
+    @PutMapping("/email")
+    UserResponse changeEmail(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody ChangeEmailRequest request) {
+        return UserResponse.from(changeEmail.changeEmail(new ChangeEmailCommand(userId(jwt), request.newEmail(),
+                request.currentPassword())));
+    }
+
     @GetMapping("/preferences")
     PreferencesResponse preferences(@AuthenticationPrincipal Jwt jwt) {
         return PreferencesResponse.from(getPreferences.getPreferences(userId(jwt)));
@@ -79,6 +98,17 @@ class UserProfileController {
                                           @Valid @RequestBody PreferencesRequest request) {
         return PreferencesResponse.from(updatePreferences.updatePreferences(new UpdatePreferencesCommand(
                 userId(jwt), request.theme(), request.language(), request.notificationsEnabled())));
+    }
+
+    /**
+     * "Eliminar mi cuenta": la desactiva (no la borra) y cierra todas sus sesiones. Pide la
+     * contraseña actual para confirmar. POST y no DELETE porque lleva cuerpo.
+     */
+    @PostMapping("/deactivate")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deactivateMe(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody DeactivateAccountRequest request) {
+        deactivateOwnAccount.deactivateOwnAccount(new DeactivateOwnAccountCommand(userId(jwt),
+                request.currentPassword()));
     }
 
     private static long userId(Jwt jwt) {
