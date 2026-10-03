@@ -83,8 +83,8 @@ public class AccountRegistrationService implements RegisterUserUseCase, CreateUs
         UserAccount account = UserAccount.create(person, email, passwordHasher.hash(rawPassword), roles);
         UserAccount saved = accounts.save(account);
 
-        // Por ahora se publica dentro de la transacción (adaptador de log). Cuando llegue RabbitMQ
-        // debe pasar por un outbox para que el evento salga si y solo si el commit se hizo.
+        // El evento sale después del commit (cross-cutting.md §6): con MESSAGING_ENABLED=true lo
+        // publica RabbitMQ en afterCommit; si no, el adaptador de log solo lo anota.
         events.publish(UserRegistered.of(saved, clock.instant()));
         return saved;
     }
