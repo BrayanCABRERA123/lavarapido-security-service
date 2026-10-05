@@ -89,6 +89,9 @@ app:
     # false: el código sale en el log (dev). true: se envía por correo al usuario.
     enabled: ${MAIL_ENABLED:false}
     from: ${MAIL_FROM:LavaRápido <no-reply@lavarapido.local>}
+  internal:
+    # llave que comparten los servicios para /internal/** (X-Internal-Key). Vacía: rutas cerradas
+    api-key: ${INTERNAL_API_KEY:}
 
 # Swagger apagado por defecto; application-dev.yml lo prende para desarrollo.
 springdoc:

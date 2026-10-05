@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -16,6 +17,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -40,7 +42,32 @@ class SecurityConfig {
             "/api/v1/auth/password/reset"
     };
 
+    /**
+     * Rutas entre servicios (/internal/**): no aceptan el JWT de los usuarios, solo la llave
+     * interna (InternalApiKeyFilter). Van fuera de /api/v1 para que ni la web ni el gateway las
+     * expongan. Esta cadena se revisa antes que la de la API.
+     */
     @Bean
+    @Order(1)
+    SecurityFilterChain internalFilterChain(HttpSecurity http, ProblemDetailsSecurityHandler problemHandler,
+                                            @Value("${app.internal.api-key:}") String internalApiKey) throws Exception {
+        http
+                .securityMatcher("/internal/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(new InternalApiKeyFilter(internalApiKey), AuthorizationFilter.class)
+                .authorizeHttpRequests(auth -> auth.anyRequest().hasRole("INTERNAL"))
+                .exceptionHandling(errors -> errors
+                        .authenticationEntryPoint(problemHandler)
+                        .accessDeniedHandler(problemHandler));
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtDecoder jwtDecoder,
                                             ProblemDetailsSecurityHandler problemHandler) throws Exception {
         http
