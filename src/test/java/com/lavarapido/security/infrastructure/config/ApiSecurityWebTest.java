@@ -2,6 +2,7 @@ package com.lavarapido.security.infrastructure.config;
 
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.InvalidCredentialsException;
+import com.lavarapido.security.domain.exception.UserNotFoundException;
 import com.lavarapido.security.domain.model.PageResult;
 import com.lavarapido.security.domain.model.RoleCode;
 import com.lavarapido.security.domain.port.in.AuthenticateUserUseCase;
@@ -62,7 +63,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "security.jwt.issuer=" + ApiSecurityWebTest.ISSUER,
         "security.jwt.audience=" + ApiSecurityWebTest.AUDIENCE,
         "security.jwt.access-token-ttl=1h",
-        "security.password.bcrypt-strength=4"
+        "security.password.bcrypt-strength=4",
+        "app.internal.api-key=" + ApiSecurityWebTest.INTERNAL_KEY
 })
 @Import({SecurityConfig.class, JwtConfig.class, ProblemDetailsSecurityHandler.class, CorrelationIdFilter.class})
 class ApiSecurityWebTest {
@@ -70,6 +72,7 @@ class ApiSecurityWebTest {
     static final String SECRET = "test-secret-with-at-least-thirty-two-bytes!!";
     static final String ISSUER = "lavarapido-security-service";
     static final String AUDIENCE = "lavarapido-api";
+    static final String INTERNAL_KEY = "internal-test-key-with-enough-length";
 
     @Autowired
     private MockMvc mvc;
@@ -256,5 +259,43 @@ class ApiSecurityWebTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"currentPassword\":\"Lavado2026!\"}"))
                 .andExpect(status().isNoContent());
         verify(deactivateOwnAccount).deactivateOwnAccount(any());
+    }
+
+    // ---------- /internal/** (entre servicios, con la llave interna) ----------
+
+    @Test
+    void internalContactWithTheKeyReturnsOnlyContactData() throws Exception {
+        given(getProfile.getProfile(42L)).willReturn(ANA);
+
+        mvc.perform(get("/internal/v1/users/42/contact").header("X-Internal-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("ana@gmail.com"))
+                .andExpect(jsonPath("$.firstName").value("Ana"))
+                .andExpect(jsonPath("$.active").value(true))
+                .andExpect(jsonPath("$.documentNumber").doesNotExist())
+                .andExpect(jsonPath("$.phone").doesNotExist());
+    }
+
+    @Test
+    void internalContactWithoutOrWithAWrongKeyIsUnauthorized() throws Exception {
+        mvc.perform(get("/internal/v1/users/42/contact"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/internal/v1/users/42/contact").header("X-Internal-Key", "wrong-key"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void internalContactDoesNotAcceptAUserToken() throws Exception {
+        mvc.perform(get("/internal/v1/users/42/contact")
+                        .header("Authorization", "Bearer " + validToken(List.of("ADMIN"))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void internalContactOfAnUnknownUserIsNotFound() throws Exception {
+        given(getProfile.getProfile(99L)).willThrow(new UserNotFoundException());
+
+        mvc.perform(get("/internal/v1/users/99/contact").header("X-Internal-Key", INTERNAL_KEY))
+                .andExpect(status().isNotFound());
     }
 }

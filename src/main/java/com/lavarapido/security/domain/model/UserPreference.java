@@ -22,9 +22,9 @@ public final class UserPreference {
         this.notificationsEnabled = notificationsEnabled;
     }
 
-    /** Mismos valores por defecto que la tabla: tema claro, español, notificaciones activas. */
+    /** Mismos valores por defecto que la tabla: paleta verde clara, español, notificaciones activas. */
     public static UserPreference defaultsFor(long userId) {
-        return new UserPreference(null, userId, Theme.LIGHT, Language.ES, true);
+        return new UserPreference(null, userId, Theme.GREEN_LIGHT, Language.ES, true);
     }
 
     public static UserPreference reconstitute(Long id, long userId, Theme theme, Language language,
