@@ -14,11 +14,13 @@ import com.lavarapido.security.domain.port.in.CreateUserAccountUseCase;
 import com.lavarapido.security.domain.port.in.DeactivateOwnAccountUseCase;
 import com.lavarapido.security.domain.port.in.GetUserPreferencesUseCase;
 import com.lavarapido.security.domain.port.in.GetUserProfileUseCase;
+import com.lavarapido.security.domain.port.in.ListRolePermissionsUseCase;
 import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase;
 import com.lavarapido.security.domain.port.in.LogoutUseCase;
 import com.lavarapido.security.domain.port.in.RegisterUserUseCase;
 import com.lavarapido.security.domain.port.in.RequestPasswordResetUseCase;
 import com.lavarapido.security.domain.port.in.ResetPasswordUseCase;
+import com.lavarapido.security.domain.port.in.UpdateRolePermissionsUseCase;
 import com.lavarapido.security.domain.port.in.UpdateUserPreferencesUseCase;
 import com.lavarapido.security.domain.port.in.UpdateUserProfileUseCase;
 import com.lavarapido.security.domain.port.in.UserAccountView;
@@ -96,6 +98,8 @@ class ApiSecurityWebTest {
     @MockitoBean private ChangeAccountStatusUseCase changeStatus;
     @MockitoBean private DeactivateOwnAccountUseCase deactivateOwnAccount;
     @MockitoBean private ChangeEmailUseCase changeEmail;
+    @MockitoBean private ListRolePermissionsUseCase listRolePermissions;
+    @MockitoBean private UpdateRolePermissionsUseCase updateRolePermissions;
 
     private static final UserAccountView ANA = new UserAccountView(42L, "ana@gmail.com", "1023456789", "Ana",
             "Pérez", "3001234567", Set.of(RoleCode.CLIENT), true, null, 7L);
