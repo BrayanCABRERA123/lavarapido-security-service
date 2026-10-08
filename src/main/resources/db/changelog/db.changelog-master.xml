@@ -15,6 +15,8 @@
     <include file="db/changelog/002-create-security-and-audit-core.sql"/>
     <include file="db/changelog/003-create-security-user-preference.sql"/>
     <include file="db/changelog/020-security-user-preference-palettes.sql"/>
+    <include file="db/changelog/023-security-custom-role.sql"/>
     <include file="db/changelog/seed/101-seed-security-role.sql"/>
+    <include file="db/changelog/026-security-role-permissions.sql"/>
 
 </databaseChangeLog>
