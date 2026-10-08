@@ -16,6 +16,7 @@ import com.lavarapido.security.domain.port.in.GetUserPreferencesUseCase;
 import com.lavarapido.security.domain.port.in.GetUserProfileUseCase;
 import com.lavarapido.security.domain.port.in.ListRolePermissionsUseCase;
 import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase;
+import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase.ListUserAccountsQuery;
 import com.lavarapido.security.domain.port.in.LogoutUseCase;
 import com.lavarapido.security.domain.port.in.RegisterUserUseCase;
 import com.lavarapido.security.domain.port.in.RequestPasswordResetUseCase;
@@ -301,5 +302,27 @@ class ApiSecurityWebTest {
 
         mvc.perform(get("/internal/v1/users/99/contact").header("X-Internal-Key", INTERNAL_KEY))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void internalAdminsReturnsOnlyTheActiveAdminIds() throws Exception {
+        UserAccountView activeAdmin = new UserAccountView(1L, "admin@gmail.com", "1000000001", "Admin", "Demo",
+                null, Set.of(RoleCode.ADMIN), true, null, 1L);
+        UserAccountView disabledAdmin = new UserAccountView(2L, "old@gmail.com", "1000000002", "Old", "Admin",
+                null, Set.of(RoleCode.ADMIN), false, null, 1L);
+        given(listAccounts.listAccounts(any()))
+                .willReturn(new PageResult<>(List.of(activeAdmin, disabledAdmin), 0, 100, 2));
+
+        mvc.perform(get("/internal/v1/users/admins").header("X-Internal-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0]").value(1));
+        verify(listAccounts).listAccounts(new ListUserAccountsQuery(RoleCode.ADMIN, 0, 100));
+    }
+
+    @Test
+    void internalAdminsWithoutTheKeyIsUnauthorized() throws Exception {
+        mvc.perform(get("/internal/v1/users/admins"))
+                .andExpect(status().isUnauthorized());
     }
 }
