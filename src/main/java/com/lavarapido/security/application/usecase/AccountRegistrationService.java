@@ -50,7 +50,7 @@ public class AccountRegistrationService implements RegisterUserUseCase, CreateUs
     @Override
     public UserAccountView register(RegisterUserCommand command) {
         UserAccount account = open(command.documentNumber(), command.firstName(), command.lastName(),
-                command.email(), command.phone(), command.password(), Set.of(RoleCode.CLIENT));
+                command.email(), command.phone(), command.password(), Set.of(RoleCode.CLIENT), false);
         return UserAccountView.from(account);
     }
 
@@ -60,12 +60,13 @@ public class AccountRegistrationService implements RegisterUserUseCase, CreateUs
             throw new InvalidValueException("INVALID_ROLES", "At least one role is required");
         }
         UserAccount account = open(command.documentNumber(), command.firstName(), command.lastName(),
-                command.email(), command.phone(), command.password(), command.roles());
+                command.email(), command.phone(), command.password(), command.roles(), true);
         return UserAccountView.from(account);
     }
 
+    /** @param createdByAdmin la abre un administrador (la persona no eligió su contraseña) */
     private UserAccount open(String rawDocument, String firstName, String lastName, String rawEmail,
-                             String rawPhone, String rawPassword, Set<RoleCode> roles) {
+                             String rawPhone, String rawPassword, Set<RoleCode> roles, boolean createdByAdmin) {
         DocumentNumber document = DocumentNumber.of(rawDocument);
         PersonName name = PersonName.of(firstName, lastName);
         EmailAddress email = EmailAddress.of(rawEmail);
@@ -85,7 +86,7 @@ public class AccountRegistrationService implements RegisterUserUseCase, CreateUs
 
         // El evento sale después del commit (cross-cutting.md §6): con MESSAGING_ENABLED=true lo
         // publica RabbitMQ en afterCommit; si no, el adaptador de log solo lo anota.
-        events.publish(UserRegistered.of(saved, clock.instant()));
+        events.publish(UserRegistered.of(saved, createdByAdmin, clock.instant()));
         return saved;
     }
 

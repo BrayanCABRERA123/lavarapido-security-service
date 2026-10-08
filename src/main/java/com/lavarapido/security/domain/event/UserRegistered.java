@@ -13,24 +13,26 @@ import java.util.Set;
  *
  * Lleva el correo y el primer nombre solo para el correo de bienvenida (ADR-011): así el
  * notification-service no tiene que consultar la base de seguridad. No lleva nada más personal.
+ * createdByAdmin dice si la cuenta la abrió un administrador (Gestión &gt; Usuarios): esa persona
+ * no eligió su contraseña, y la bienvenida le explica cómo entrar.
  */
 public record UserRegistered(long userId, long personId, String email, String firstName, Set<RoleCode> roles,
-                             Instant occurredAt) implements DomainEvent {
+                             boolean createdByAdmin, Instant occurredAt) implements DomainEvent {
 
     public UserRegistered {
         roles = Set.copyOf(roles);
     }
 
-    public static UserRegistered of(UserAccount account, Instant occurredAt) {
+    public static UserRegistered of(UserAccount account, boolean createdByAdmin, Instant occurredAt) {
         return new UserRegistered(account.id(), account.person().id(), account.username().value(),
-                account.person().name().firstName(), account.roles(), occurredAt);
+                account.person().name().firstName(), account.roles(), createdByAdmin, occurredAt);
     }
 
     /** Sin correo ni nombre: el evento se escribe en los logs y un log no debe tener datos personales. */
     @Override
     public String toString() {
         return "UserRegistered[userId=" + userId + ", personId=" + personId + ", roles=" + roles
-                + ", occurredAt=" + occurredAt + "]";
+                + ", createdByAdmin=" + createdByAdmin + ", occurredAt=" + occurredAt + "]";
     }
 
     @Override

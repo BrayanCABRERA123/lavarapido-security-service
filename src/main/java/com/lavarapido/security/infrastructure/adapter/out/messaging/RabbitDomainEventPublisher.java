@@ -105,6 +105,7 @@ class RabbitDomainEventPublisher implements DomainEventPublisher {
             payload.put("email", registered.email());
             payload.put("firstName", registered.firstName());
             payload.put("roles", registered.roles().stream().map(Enum::name).sorted().toList());
+            payload.put("createdByAdmin", registered.createdByAdmin());
             return payload;
         }
         return null;

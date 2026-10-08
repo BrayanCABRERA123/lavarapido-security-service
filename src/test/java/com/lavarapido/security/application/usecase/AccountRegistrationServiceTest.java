@@ -106,6 +106,20 @@ class AccountRegistrationServiceTest {
     }
 
     @Test
+    void theEventSaysWhetherTheAccountWasOpenedByAnAdministrator() {
+        service.register(ana());
+        service.createAccount(new CreateUserAccountCommand("80000001", "Luis", "Gómez",
+                "luis@gmail.com", "3009998877", "Operario2026!", Set.of(RoleCode.OPERATOR)));
+
+        // la bienvenida cambia: quien se registra solo eligió su contraseña, el creado por el admin no
+        assertThat(events.events).hasSize(2);
+        assertThat(((UserRegistered) events.events.get(0)).createdByAdmin()).isFalse();
+        UserRegistered byAdmin = (UserRegistered) events.events.get(1);
+        assertThat(byAdmin.createdByAdmin()).isTrue();
+        assertThat(byAdmin.roles()).containsExactly(RoleCode.OPERATOR);
+    }
+
+    @Test
     void anAccountCreatedByAnAdministratorNeedsARole() {
         CreateUserAccountCommand noRoles = new CreateUserAccountCommand("80000001", "Luis", "Gómez",
                 "luis@gmail.com", null, "Operario2026!", Set.of());
