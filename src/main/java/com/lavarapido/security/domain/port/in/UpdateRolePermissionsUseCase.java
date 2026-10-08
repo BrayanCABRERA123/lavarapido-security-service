@@ -8,5 +8,5 @@ import java.util.List;
 /** Reemplaza los permisos de uno de los 3 roles fijos (ADMIN/OPERATOR/CLIENT). */
 public interface UpdateRolePermissionsUseCase {
 
-    RolePermissions updateRolePermissions(RoleCode role, List<Short> permissionIds, long actor);
+    RolePermissions updateRolePermissions(RoleCode role, List<Short> permissionIds);
 }

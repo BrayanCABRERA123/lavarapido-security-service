@@ -15,7 +15,6 @@ import org.springframework.stereotype.Repository;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Repository
@@ -61,18 +60,14 @@ class RolePermissionPersistenceAdapter implements RolePermissionRepository {
     }
 
     @Override
-    public RolePermissions replacePermissions(RoleCode role, List<Short> permissionIds, long actor) {
+    public RolePermissions replacePermissions(RoleCode role, List<Short> permissionIds) {
         RoleJpaEntity entity = roleEntityOf(role);
-        Set<Short> validIds = permissions.findAll().stream().map(PermissionJpaEntity::getId).collect(Collectors.toSet());
-        List<Short> wanted = permissionIds == null ? List.of()
-                : permissionIds.stream().distinct().filter(validIds::contains).toList();
-
         rolePermissions.deleteByRoleId(entity.getId());
         rolePermissions.flush();
-        for (Short permissionId : wanted) {
+        for (Short permissionId : permissionIds) {
             rolePermissions.save(new RolePermissionJpaEntity(entity.getId(), permissionId));
         }
-        return new RolePermissions(role, wanted);
+        return new RolePermissions(role, permissionIds);
     }
 
     // los 3 roles siempre están sembrados (migración seed/101): si falta uno, el seed no corrió

@@ -30,6 +30,7 @@ public final class RolePermissionDtos {
     public record RolePermissionsMatrixResponse(List<PermissionResponse> permissions, List<RolePermissionsResponse> roles) {
     }
 
-    public record UpdateRolePermissionsRequest(@NotNull List<Short> permissionIds) {
+    // sin nulls adentro: [null] antes dejaba el rol sin ningún permiso y respondía 200
+    public record UpdateRolePermissionsRequest(@NotNull List<@NotNull Short> permissionIds) {
     }
 }

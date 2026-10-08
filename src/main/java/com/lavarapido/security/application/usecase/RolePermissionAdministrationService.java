@@ -1,5 +1,6 @@
 package com.lavarapido.security.application.usecase;
 
+import com.lavarapido.security.domain.exception.UnknownPermissionException;
 import com.lavarapido.security.domain.model.Permission;
 import com.lavarapido.security.domain.model.RoleCode;
 import com.lavarapido.security.domain.model.RolePermissions;
@@ -10,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Gestión &gt; Roles: los 3 roles siguen fijos (ADR-010), lo único editable son sus permisos
@@ -36,9 +39,19 @@ public class RolePermissionAdministrationService implements ListRolePermissionsU
         return repository.findRolePermissions();
     }
 
+    /**
+     * Deja exactamente esos permisos al rol. Un id que no está en el catálogo se rechaza (antes se
+     * descartaba en silencio y el admin creía haberlo guardado); los repetidos cuentan una vez.
+     */
     @Override
     @Transactional
-    public RolePermissions updateRolePermissions(RoleCode role, List<Short> permissionIds, long actor) {
-        return repository.replacePermissions(role, permissionIds, actor);
+    public RolePermissions updateRolePermissions(RoleCode role, List<Short> permissionIds) {
+        Set<Short> catalog = repository.findPermissions().stream().map(Permission::id).collect(Collectors.toSet());
+        List<Short> wanted = permissionIds.stream().distinct().toList();
+        List<Short> unknown = wanted.stream().filter(id -> !catalog.contains(id)).toList();
+        if (!unknown.isEmpty()) {
+            throw new UnknownPermissionException(unknown);
+        }
+        return repository.replacePermissions(role, wanted);
     }
 }

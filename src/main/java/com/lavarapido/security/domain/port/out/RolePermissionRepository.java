@@ -14,6 +14,9 @@ public interface RolePermissionRepository {
 
     RolePermissions findRolePermissions(RoleCode role);
 
-    /** Deja exactamente esos permisos para el rol (quita los que ya no estén, agrega los nuevos). */
-    RolePermissions replacePermissions(RoleCode role, List<Short> permissionIds, long actor);
+    /**
+     * Deja exactamente esos permisos para el rol (quita los que ya no estén, agrega los nuevos).
+     * Los ids ya vienen validados contra el catálogo y sin repetir.
+     */
+    RolePermissions replacePermissions(RoleCode role, List<Short> permissionIds);
 }

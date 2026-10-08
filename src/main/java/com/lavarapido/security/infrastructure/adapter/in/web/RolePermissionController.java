@@ -9,8 +9,6 @@ import com.lavarapido.security.infrastructure.adapter.in.web.dto.RolePermissionD
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.RolePermissionDtos.UpdateRolePermissionsRequest;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -45,10 +43,7 @@ class RolePermissionController {
     }
 
     @PutMapping("/{role}")
-    RolePermissionsResponse update(@PathVariable RoleCode role, @Valid @RequestBody UpdateRolePermissionsRequest request,
-                                   @AuthenticationPrincipal Jwt jwt) {
-        var updated = updateRolePermissions.updateRolePermissions(role, request.permissionIds(),
-                AuthenticatedUser.from(jwt).userId());
-        return RolePermissionsResponse.from(updated);
+    RolePermissionsResponse update(@PathVariable RoleCode role, @Valid @RequestBody UpdateRolePermissionsRequest request) {
+        return RolePermissionsResponse.from(updateRolePermissions.updateRolePermissions(role, request.permissionIds()));
     }
 }
