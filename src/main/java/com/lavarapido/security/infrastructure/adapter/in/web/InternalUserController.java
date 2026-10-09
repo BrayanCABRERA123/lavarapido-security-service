@@ -1,9 +1,11 @@
 package com.lavarapido.security.infrastructure.adapter.in.web;
 
 import com.lavarapido.security.domain.model.RoleCode;
+import com.lavarapido.security.domain.port.in.GetUserPreferencesUseCase;
 import com.lavarapido.security.domain.port.in.GetUserProfileUseCase;
 import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase;
 import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase.ListUserAccountsQuery;
+import com.lavarapido.security.domain.port.in.PreferenceView;
 import com.lavarapido.security.domain.port.in.UserAccountView;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,17 +31,27 @@ class InternalUserController {
 
     private final GetUserProfileUseCase getProfile;
     private final ListUserAccountsUseCase listAccounts;
+    private final GetUserPreferencesUseCase getPreferences;
 
-    InternalUserController(GetUserProfileUseCase getProfile, ListUserAccountsUseCase listAccounts) {
+    InternalUserController(GetUserProfileUseCase getProfile, ListUserAccountsUseCase listAccounts,
+                           GetUserPreferencesUseCase getPreferences) {
         this.getProfile = getProfile;
         this.listAccounts = listAccounts;
+        this.getPreferences = getPreferences;
     }
 
-    /** Solo lo necesario para escribirle al usuario; nada de documento, teléfono ni roles. */
+    /**
+     * Solo lo necesario para escribirle al usuario; nada de documento, teléfono ni roles. Incluye por
+     * qué canales quiere sus avisos (Configuración > Notificaciones) para que notification-service los
+     * respete: push, correo de recordatorios y promociones.
+     */
     @GetMapping("/{userId}/contact")
     ContactResponse contact(@PathVariable long userId) {
         UserAccountView user = getProfile.getProfile(userId);
-        return new ContactResponse(user.id(), user.email(), user.firstName(), user.active());
+        PreferenceView preferences = getPreferences.getPreferences(userId);
+        return new ContactResponse(user.id(), user.email(), user.firstName(), user.active(),
+                preferences.notificationsEnabled(), preferences.emailRemindersEnabled(),
+                preferences.promotionsEnabled());
     }
 
     /** Ids de las cuentas ADMIN activas; una cuenta desactivada no recibe avisos. */
@@ -51,6 +63,7 @@ class InternalUserController {
                 .toList();
     }
 
-    record ContactResponse(long userId, String email, String firstName, boolean active) {
+    record ContactResponse(long userId, String email, String firstName, boolean active, boolean pushEnabled,
+                           boolean emailRemindersEnabled, boolean promotionsEnabled) {
     }
 }

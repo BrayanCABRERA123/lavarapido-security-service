@@ -18,6 +18,7 @@ import com.lavarapido.security.domain.port.in.ListRolePermissionsUseCase;
 import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase;
 import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase.ListUserAccountsQuery;
 import com.lavarapido.security.domain.port.in.LogoutUseCase;
+import com.lavarapido.security.domain.port.in.PreferenceView;
 import com.lavarapido.security.domain.port.in.RegisterUserUseCase;
 import com.lavarapido.security.domain.port.in.RequestPasswordResetUseCase;
 import com.lavarapido.security.domain.port.in.ResetPasswordUseCase;
@@ -271,12 +272,17 @@ class ApiSecurityWebTest {
     @Test
     void internalContactWithTheKeyReturnsOnlyContactData() throws Exception {
         given(getProfile.getProfile(42L)).willReturn(ANA);
+        given(getPreferences.getPreferences(42L)).willReturn(new PreferenceView("green-light", "es", true, false, true));
 
         mvc.perform(get("/internal/v1/users/42/contact").header("X-Internal-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("ana@gmail.com"))
                 .andExpect(jsonPath("$.firstName").value("Ana"))
                 .andExpect(jsonPath("$.active").value(true))
+                // canales que eligió en Configuración > Notificaciones
+                .andExpect(jsonPath("$.pushEnabled").value(true))
+                .andExpect(jsonPath("$.emailRemindersEnabled").value(false))
+                .andExpect(jsonPath("$.promotionsEnabled").value(true))
                 .andExpect(jsonPath("$.documentNumber").doesNotExist())
                 .andExpect(jsonPath("$.phone").doesNotExist());
     }
