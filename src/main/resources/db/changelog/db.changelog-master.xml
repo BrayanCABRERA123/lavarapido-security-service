@@ -18,5 +18,6 @@
     <include file="db/changelog/023-security-custom-role.sql"/>
     <include file="db/changelog/seed/101-seed-security-role.sql"/>
     <include file="db/changelog/026-security-role-permissions.sql"/>
+    <include file="db/changelog/030-security-user-preference-notification-channels.sql"/>
 
 </databaseChangeLog>
