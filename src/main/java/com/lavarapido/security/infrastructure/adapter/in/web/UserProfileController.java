@@ -97,7 +97,8 @@ class UserProfileController {
     PreferencesResponse updatePreferences(@AuthenticationPrincipal Jwt jwt,
                                           @Valid @RequestBody PreferencesRequest request) {
         return PreferencesResponse.from(updatePreferences.updatePreferences(new UpdatePreferencesCommand(
-                userId(jwt), request.theme(), request.language(), request.notificationsEnabled())));
+                userId(jwt), request.theme(), request.language(), request.notificationsEnabled(),
+                request.emailRemindersEnabled(), request.promotionsEnabled())));
     }
 
     /**

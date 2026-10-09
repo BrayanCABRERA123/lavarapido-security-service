@@ -34,6 +34,8 @@ class UserPreferencePersistenceAdapter implements UserPreferenceRepository {
         entity.setTheme(preference.theme().code());
         entity.setLanguage(preference.language().code());
         entity.setNotificationsEnabled(preference.notificationsEnabled());
+        entity.setEmailRemindersEnabled(preference.emailRemindersEnabled());
+        entity.setPromotionsEnabled(preference.promotionsEnabled());
         if (entity.getId() != null) {
             // Las preferencias solo las edita su dueño.
             entity.setUpdatedBy(preference.userId());
@@ -43,6 +45,7 @@ class UserPreferencePersistenceAdapter implements UserPreferenceRepository {
 
     private static UserPreference toDomain(UserPreferenceJpaEntity entity) {
         return UserPreference.reconstitute(entity.getId(), entity.getUserId(), Theme.fromCode(entity.getTheme()),
-                Language.fromCode(entity.getLanguage()), entity.isNotificationsEnabled());
+                Language.fromCode(entity.getLanguage()), entity.isNotificationsEnabled(),
+                entity.isEmailRemindersEnabled(), entity.isPromotionsEnabled());
     }
 }
