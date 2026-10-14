@@ -1,14 +1,17 @@
 package com.lavarapido.security.application.usecase;
 
 import com.lavarapido.security.domain.exception.InvalidCredentialsException;
+import com.lavarapido.security.domain.exception.AccountLockedException;
 import com.lavarapido.security.domain.exception.InvalidValueException;
 import com.lavarapido.security.domain.model.EmailAddress;
 import com.lavarapido.security.domain.model.HashedPassword;
 import com.lavarapido.security.domain.model.UserAccount;
+import com.lavarapido.security.domain.model.LoginLockout;
 import com.lavarapido.security.domain.port.in.AuthenticateUserUseCase;
 import com.lavarapido.security.domain.port.in.AuthenticationResult;
 import com.lavarapido.security.domain.port.in.LogoutUseCase;
 import com.lavarapido.security.domain.port.in.UserAccountView;
+import com.lavarapido.security.domain.port.out.LoginLockoutRepository;
 import com.lavarapido.security.domain.port.out.PasswordHasher;
 import com.lavarapido.security.domain.port.out.TokenIssuer;
 import com.lavarapido.security.domain.port.out.TokenIssuer.IssuedToken;
@@ -30,6 +33,7 @@ public class AuthenticationService implements AuthenticateUserUseCase, LogoutUse
     private final UserSessionRepository sessions;
     private final PasswordHasher passwordHasher;
     private final TokenIssuer tokenIssuer;
+    private final LoginLockoutRepository lockouts;
     private final Clock clock;
 
     /**
@@ -39,25 +43,50 @@ public class AuthenticationService implements AuthenticateUserUseCase, LogoutUse
     private final HashedPassword timingEqualizer;
 
     public AuthenticationService(UserAccountRepository accounts, UserSessionRepository sessions,
-                                 PasswordHasher passwordHasher, TokenIssuer tokenIssuer, Clock clock) {
+                                 PasswordHasher passwordHasher, TokenIssuer tokenIssuer,
+                                 LoginLockoutRepository lockouts, Clock clock) {
         this.accounts = accounts;
         this.sessions = sessions;
         this.passwordHasher = passwordHasher;
         this.tokenIssuer = tokenIssuer;
+        this.lockouts = lockouts;
         this.clock = clock;
         this.timingEqualizer = passwordHasher.hash("timing-equalizer-" + System.nanoTime());
     }
 
+    /**
+     * RF-004b: 5 contraseñas erradas dentro de 15 minutos bloquean la cuenta 15 minutos. Mientras está
+     * bloqueada ni la contraseña correcta entra. Los fallos se guardan aunque la respuesta sea un error
+     * (noRollbackFor); entrar bien borra el conteo.
+     */
     @Override
+    @Transactional(noRollbackFor = {InvalidCredentialsException.class, AccountLockedException.class})
     public AuthenticationResult login(LoginCommand command) {
-        UserAccount account = findByEmail(command.email())
-                .filter(found -> passwordHasher.matches(command.password(), found.passwordHash()))
-                .orElseThrow(InvalidCredentialsException::new);
+        Instant now = clock.instant();
+        Optional<UserAccount> found = findByEmail(command.email());
+        boolean passwordMatches = found.map(a -> passwordHasher.matches(command.password(), a.passwordHash()))
+                .orElse(false);
+        if (found.isEmpty()) {
+            throw new InvalidCredentialsException();
+        }
+        UserAccount account = found.get();
+        LoginLockout lockout = lockouts.findByUserId(account.id()).orElse(LoginLockout.none(account.id()));
+        if (lockout.isLocked(now)) {
+            throw new AccountLockedException(lockout.lockedUntil());
+        }
+        if (!passwordMatches) {
+            LoginLockout next = lockout.registerFailure(now);
+            lockouts.save(next);
+            if (next.isLocked(now)) {
+                throw new AccountLockedException(next.lockedUntil());
+            }
+            throw new InvalidCredentialsException();
+        }
 
         // Se valida solo después de la contraseña: que está desactivada solo lo sabe su dueño.
         account.ensureCanAuthenticate();
 
-        Instant now = clock.instant();
+        lockouts.clear(account.id());
         account.recordSuccessfulLogin(now);
         accounts.save(account);
 

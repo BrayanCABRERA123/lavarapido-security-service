@@ -3,9 +3,11 @@ package com.lavarapido.security.application.fake;
 import com.lavarapido.security.domain.event.DomainEvent;
 import com.lavarapido.security.domain.model.EmailAddress;
 import com.lavarapido.security.domain.model.HashedPassword;
+import com.lavarapido.security.domain.model.LoginLockout;
 import com.lavarapido.security.domain.model.PersonName;
 import com.lavarapido.security.domain.model.UserAccount;
 import com.lavarapido.security.domain.port.out.DomainEventPublisher;
+import com.lavarapido.security.domain.port.out.LoginLockoutRepository;
 import com.lavarapido.security.domain.port.out.PasswordHasher;
 import com.lavarapido.security.domain.port.out.ResetAttemptCounter;
 import com.lavarapido.security.domain.port.out.ResetCodeGenerator;
@@ -23,6 +25,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /** Dobles de prueba escritos a mano para los puertos de salida. */
 public final class Fakes {
@@ -166,6 +169,27 @@ public final class Fakes {
         public IssuedToken issue(UserAccount account, long sessionId, Instant issuedAt) {
             return new IssuedToken("token-for-" + account.id() + "-session-" + sessionId,
                     issuedAt.plus(timeToLive()));
+        }
+    }
+
+    /** Bloqueos de inicio de sesión en memoria (security.login_lockout). */
+    public static class InMemoryLoginLockoutRepository implements LoginLockoutRepository {
+
+        public final Map<Long, LoginLockout> rows = new HashMap<>();
+
+        @Override
+        public Optional<LoginLockout> findByUserId(long userId) {
+            return Optional.ofNullable(rows.get(userId));
+        }
+
+        @Override
+        public void save(LoginLockout lockout) {
+            rows.put(lockout.userId(), lockout);
+        }
+
+        @Override
+        public void clear(long userId) {
+            rows.remove(userId);
         }
     }
 }

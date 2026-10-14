@@ -45,7 +45,8 @@ class UserProfileAndAdministrationTest {
     private final MutableClock clock = new MutableClock(Instant.parse("2026-09-29T15:00:00Z"));
     private final InMemoryUserSessionRepository sessions = new InMemoryUserSessionRepository();
     private final AuthenticationService authentication =
-            new AuthenticationService(accounts, sessions, hasher, new FakeTokenIssuer(), clock);
+            new AuthenticationService(accounts, sessions, hasher, new FakeTokenIssuer(),
+                    new com.lavarapido.security.application.fake.Fakes.InMemoryLoginLockoutRepository(), clock);
     private final AccountRegistrationService registration =
             new AccountRegistrationService(accounts, hasher, new PasswordPolicy(), new RecordingEventPublisher(), clock);
 
