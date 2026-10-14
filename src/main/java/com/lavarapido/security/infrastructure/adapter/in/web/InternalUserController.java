@@ -43,7 +43,8 @@ class InternalUserController {
     /**
      * Solo lo necesario para escribirle al usuario; nada de documento, teléfono ni roles. Incluye por
      * qué canales quiere sus avisos (Configuración > Notificaciones) para que notification-service los
-     * respete: push, correo de recordatorios y promociones.
+     * respete: push, correo de recordatorios y promociones. language es el idioma de la cuenta (es, en,
+     * fr, pt): notification-service escribe los avisos en ese idioma (RF-020).
      */
     @GetMapping("/{userId}/contact")
     ContactResponse contact(@PathVariable long userId) {
@@ -51,7 +52,7 @@ class InternalUserController {
         PreferenceView preferences = getPreferences.getPreferences(userId);
         return new ContactResponse(user.id(), user.email(), user.firstName(), user.active(),
                 preferences.notificationsEnabled(), preferences.emailRemindersEnabled(),
-                preferences.promotionsEnabled());
+                preferences.promotionsEnabled(), preferences.language());
     }
 
     /** Ids de las cuentas ADMIN activas; una cuenta desactivada no recibe avisos. */
@@ -64,6 +65,6 @@ class InternalUserController {
     }
 
     record ContactResponse(long userId, String email, String firstName, boolean active, boolean pushEnabled,
-                           boolean emailRemindersEnabled, boolean promotionsEnabled) {
+                           boolean emailRemindersEnabled, boolean promotionsEnabled, String language) {
     }
 }

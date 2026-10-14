@@ -272,7 +272,7 @@ class ApiSecurityWebTest {
     @Test
     void internalContactWithTheKeyReturnsOnlyContactData() throws Exception {
         given(getProfile.getProfile(42L)).willReturn(ANA);
-        given(getPreferences.getPreferences(42L)).willReturn(new PreferenceView("green-light", "es", true, false, true));
+        given(getPreferences.getPreferences(42L)).willReturn(new PreferenceView("green-light", "en", true, false, true));
 
         mvc.perform(get("/internal/v1/users/42/contact").header("X-Internal-Key", INTERNAL_KEY))
                 .andExpect(status().isOk())
@@ -283,6 +283,8 @@ class ApiSecurityWebTest {
                 .andExpect(jsonPath("$.pushEnabled").value(true))
                 .andExpect(jsonPath("$.emailRemindersEnabled").value(false))
                 .andExpect(jsonPath("$.promotionsEnabled").value(true))
+                // idioma de la cuenta: notification-service escribe los avisos en ese idioma
+                .andExpect(jsonPath("$.language").value("en"))
                 .andExpect(jsonPath("$.documentNumber").doesNotExist())
                 .andExpect(jsonPath("$.phone").doesNotExist());
     }
