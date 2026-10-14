@@ -150,6 +150,17 @@ class ApiSecurityWebTest {
     }
 
     @Test
+    void aLockedAccountAnswers423WithAStableCode() throws Exception {
+        given(authenticateUser.login(any())).willThrow(
+                new com.lavarapido.security.domain.exception.AccountLockedException(java.time.Instant.now()));
+
+        mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ana@gmail.com\",\"password\":\"Wrong2026!\"}"))
+                .andExpect(status().isLocked())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
+    }
+
+    @Test
     void invalidRegistrationFieldsAreListed() throws Exception {
         mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"documentNumber\":\"1023456789\",\"firstName\":\"Ana\",\"lastName\":\"Pérez\","

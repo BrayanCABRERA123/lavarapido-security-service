@@ -1,5 +1,7 @@
 package com.lavarapido.security.application.usecase;
 
+import com.lavarapido.security.application.fake.Fakes;
+
 import com.lavarapido.security.application.fake.Fakes.FixedResetCodeGenerator;
 import com.lavarapido.security.application.fake.Fakes.InMemoryResetAttemptCounter;
 import com.lavarapido.security.application.fake.Fakes.MutableClock;
@@ -41,9 +43,10 @@ class PasswordRecoveryServiceTest {
     private final MutableClock clock = new MutableClock(Instant.parse("2026-09-29T15:00:00Z"));
     private final PlainPasswordHasher hasher = new PlainPasswordHasher();
 
+    private final Fakes.InMemoryLoginLockoutRepository lockouts = new Fakes.InMemoryLoginLockoutRepository();
     private final PasswordRecoveryService service = new PasswordRecoveryService(accounts, tokens, hasher,
             new PasswordPolicy(), new PasswordRecoveryPolicy(Duration.ofMinutes(15), 3), codes, notifier,
-            new InMemoryResetAttemptCounter(), events, clock);
+            new InMemoryResetAttemptCounter(), events, lockouts, clock);
 
     private long anaId;
 
@@ -150,5 +153,16 @@ class PasswordRecoveryServiceTest {
         service.requestReset(new RequestPasswordResetCommand(EMAIL, null));
 
         assertThat(notifier.sent).isZero();
+    }
+
+    @Test
+    void resettingThePasswordLiftsALoginLockout() {
+        lockouts.save(new com.lavarapido.security.domain.model.LoginLockout(anaId, 0, null,
+                clock.instant().plus(java.time.Duration.ofMinutes(15))));
+        service.requestReset(new RequestPasswordResetCommand(EMAIL, "10.0.0.1"));
+        String code = notifier.lastCodeByEmail.get(EMAIL);
+        service.resetPassword(new ResetPasswordCommand(EMAIL, code, "Nueva2026!"));
+
+        assertThat(lockouts.rows).isEmpty();
     }
 }
