@@ -24,6 +24,7 @@ import com.lavarapido.security.domain.port.in.RequestPasswordResetUseCase;
 import com.lavarapido.security.domain.port.in.ResetPasswordUseCase;
 import com.lavarapido.security.domain.port.in.UpdateRolePermissionsUseCase;
 import com.lavarapido.security.domain.port.in.UpdateUserPreferencesUseCase;
+import com.lavarapido.security.domain.port.in.PersonAddressUseCase;
 import com.lavarapido.security.domain.port.in.UpdateUserProfileUseCase;
 import com.lavarapido.security.domain.port.in.UserAccountView;
 import com.lavarapido.security.domain.port.in.VerifyPasswordResetCodeUseCase;
@@ -95,6 +96,7 @@ class ApiSecurityWebTest {
     @MockitoBean private ChangePasswordUseCase changePassword;
     @MockitoBean private GetUserPreferencesUseCase getPreferences;
     @MockitoBean private UpdateUserPreferencesUseCase updatePreferences;
+    @MockitoBean private PersonAddressUseCase addresses;
     @MockitoBean private CreateUserAccountUseCase createAccount;
     @MockitoBean private ListUserAccountsUseCase listAccounts;
     @MockitoBean private ChangeAccountStatusUseCase changeStatus;
