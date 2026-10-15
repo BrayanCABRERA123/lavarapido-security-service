@@ -20,7 +20,9 @@ public record UserAccountView(
         Instant lastLogin,
         // id de security.person: customer-service lo usa para crear el perfil de cliente
         // (customer.customer.person_id) cuando el evento de registro no le llegó
-        long personId) {
+        long personId,
+        // fecha de registro (Gestión > Usuarios)
+        Instant createdAt) {
 
     public UserAccountView {
         roles = Set.copyOf(roles);
@@ -38,6 +40,7 @@ public record UserAccountView(
                 account.roles(),
                 account.isActive(),
                 account.lastLogin(),
-                account.person().id());
+                account.person().id(),
+                account.createdAt());
     }
 }

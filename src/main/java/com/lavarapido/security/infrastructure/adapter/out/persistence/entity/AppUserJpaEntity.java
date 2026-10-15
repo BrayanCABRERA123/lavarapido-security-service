@@ -11,6 +11,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.BatchSize;
 
@@ -42,6 +43,10 @@ public class AppUserJpaEntity {
 
     @Column(name = "last_login")
     private Instant lastLogin;
+
+    // fecha de registro: se pone al crear la cuenta y no cambia (migración 036)
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
 
     /** {@code security.user_role}: su llave subrogada {@code user_role_id} es una columna IDENTITY. */
     @ManyToMany(fetch = FetchType.LAZY)
@@ -93,6 +98,17 @@ public class AppUserJpaEntity {
 
     public Instant getLastLogin() {
         return lastLogin;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    @PrePersist
+    void onCreate() {
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
     }
 
     public void setLastLogin(Instant lastLogin) {

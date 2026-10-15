@@ -106,7 +106,7 @@ class ApiSecurityWebTest {
     @MockitoBean private UpdateRolePermissionsUseCase updateRolePermissions;
 
     private static final UserAccountView ANA = new UserAccountView(42L, "ana@gmail.com", "1023456789", "Ana",
-            "Pérez", "3001234567", Set.of(RoleCode.CLIENT), true, null, 7L);
+            "Pérez", "3001234567", Set.of(RoleCode.CLIENT), true, null, 7L, null);
 
     private String token(long userId, List<String> roles, String issuer, Instant expiresAt) {
         JwtClaimsSet claims = JwtClaimsSet.builder()
@@ -328,9 +328,9 @@ class ApiSecurityWebTest {
     @Test
     void internalAdminsReturnsOnlyTheActiveAdminIds() throws Exception {
         UserAccountView activeAdmin = new UserAccountView(1L, "admin@gmail.com", "1000000001", "Admin", "Demo",
-                null, Set.of(RoleCode.ADMIN), true, null, 1L);
+                null, Set.of(RoleCode.ADMIN), true, null, 1L, null);
         UserAccountView disabledAdmin = new UserAccountView(2L, "old@gmail.com", "1000000002", "Old", "Admin",
-                null, Set.of(RoleCode.ADMIN), false, null, 1L);
+                null, Set.of(RoleCode.ADMIN), false, null, 1L, null);
         given(listAccounts.listAccounts(any()))
                 .willReturn(new PageResult<>(List.of(activeAdmin, disabledAdmin), 0, 100, 2));
 
