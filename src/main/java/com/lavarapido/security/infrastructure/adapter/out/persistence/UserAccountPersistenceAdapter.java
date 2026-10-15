@@ -129,6 +129,7 @@ class UserAccountPersistenceAdapter implements UserAccountRepository {
                 new HashedPassword(entity.getPasswordHash()),
                 entity.isActive(),
                 entity.getLastLogin(),
+                entity.getCreatedAt(),
                 roleCodes);
     }
 

@@ -31,16 +31,19 @@ public final class UserAccount {
     private HashedPassword passwordHash;
     private boolean active;
     private Instant lastLogin;
+    // fecha de registro; null mientras la cuenta no se ha guardado
+    private final Instant createdAt;
     private final Set<RoleCode> roles;
 
     private UserAccount(Long id, Person person, EmailAddress username, HashedPassword passwordHash,
-                        boolean active, Instant lastLogin, Set<RoleCode> roles) {
+                        boolean active, Instant lastLogin, Instant createdAt, Set<RoleCode> roles) {
         this.id = id;
         this.person = Objects.requireNonNull(person, "person");
         this.username = requireLoginEmail(username);
         this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash");
         this.active = active;
         this.lastLogin = lastLogin;
+        this.createdAt = createdAt;
         if (roles == null || roles.isEmpty()) {
             throw new IllegalArgumentException("An account must hold at least one role");
         }
@@ -54,12 +57,18 @@ public final class UserAccount {
 
     /** Cuenta creada por un administrador (ej. un operario), con roles explícitos. */
     public static UserAccount create(Person person, EmailAddress email, HashedPassword passwordHash, Set<RoleCode> roles) {
-        return new UserAccount(null, person, email, passwordHash, true, null, roles);
+        return new UserAccount(null, person, email, passwordHash, true, null, null, roles);
     }
 
     public static UserAccount reconstitute(Long id, Person person, EmailAddress username, HashedPassword passwordHash,
                                            boolean active, Instant lastLogin, Set<RoleCode> roles) {
-        return new UserAccount(Objects.requireNonNull(id, "id"), person, username, passwordHash, active, lastLogin, roles);
+        return reconstitute(id, person, username, passwordHash, active, lastLogin, null, roles);
+    }
+
+    public static UserAccount reconstitute(Long id, Person person, EmailAddress username, HashedPassword passwordHash,
+                                           boolean active, Instant lastLogin, Instant createdAt, Set<RoleCode> roles) {
+        return new UserAccount(Objects.requireNonNull(id, "id"), person, username, passwordHash, active, lastLogin,
+                createdAt, roles);
     }
 
     public void ensureCanAuthenticate() {
@@ -128,6 +137,10 @@ public final class UserAccount {
 
     public Instant lastLogin() {
         return lastLogin;
+    }
+
+    public Instant createdAt() {
+        return createdAt;
     }
 
     public Set<RoleCode> roles() {
