@@ -3,6 +3,7 @@ package com.lavarapido.security.application.usecase;
 import com.lavarapido.security.domain.event.PasswordChanged;
 import com.lavarapido.security.domain.exception.InvalidResetCodeException;
 import com.lavarapido.security.domain.exception.InvalidValueException;
+import com.lavarapido.security.domain.exception.SamePasswordException;
 import com.lavarapido.security.domain.model.EmailAddress;
 import com.lavarapido.security.domain.model.PasswordResetToken;
 import com.lavarapido.security.domain.model.UserAccount;
@@ -106,6 +107,11 @@ public class PasswordRecoveryService
         UserAccount account = findActiveAccount(command.email()).orElseThrow(InvalidResetCodeException::new);
         PasswordResetToken token = checkCode(account, command.code(), now);
         passwordPolicy.validate(command.newPassword());
+        // quien recupera la contraseña debe elegir una nueva; se revisa antes de gastar el código
+        // para que pueda intentarlo otra vez con una distinta
+        if (passwordHasher.matches(command.newPassword(), account.passwordHash())) {
+            throw new SamePasswordException();
+        }
 
         token.redeem(now);
         resetTokens.save(token);
