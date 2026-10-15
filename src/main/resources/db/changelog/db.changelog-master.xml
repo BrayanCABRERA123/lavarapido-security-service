@@ -20,5 +20,6 @@
     <include file="db/changelog/026-security-role-permissions.sql"/>
     <include file="db/changelog/030-security-user-preference-notification-channels.sql"/>
     <include file="db/changelog/034-security-login-lockout.sql"/>
+    <include file="db/changelog/035-security-person-address.sql"/>
 
 </databaseChangeLog>
