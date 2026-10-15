@@ -12,6 +12,7 @@ import com.lavarapido.security.application.fake.InMemoryPasswordResetTokenReposi
 import com.lavarapido.security.application.fake.InMemoryUserAccountRepository;
 import com.lavarapido.security.domain.event.PasswordChanged;
 import com.lavarapido.security.domain.exception.InvalidResetCodeException;
+import com.lavarapido.security.domain.exception.SamePasswordException;
 import com.lavarapido.security.domain.exception.WeakPasswordException;
 import com.lavarapido.security.domain.model.PasswordResetToken;
 import com.lavarapido.security.domain.model.UserAccount;
@@ -140,6 +141,17 @@ class PasswordRecoveryServiceTest {
 
         assertThatThrownBy(() -> service.resetPassword(new ResetPasswordCommand(EMAIL, "123456", "weak")))
                 .isInstanceOf(WeakPasswordException.class);
+        assertThatCode(() -> service.resetPassword(new ResetPasswordCommand(EMAIL, "123456", "Nueva2026!")))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void theCurrentPasswordCannotBeReusedAndDoesNotConsumeTheCode() {
+        service.requestReset(new RequestPasswordResetCommand(EMAIL, null));
+
+        assertThatThrownBy(() -> service.resetPassword(new ResetPasswordCommand(EMAIL, "123456", "Lavado2026!")))
+                .isInstanceOf(SamePasswordException.class);
+        assertThat(events.events).isEmpty();
         assertThatCode(() -> service.resetPassword(new ResetPasswordCommand(EMAIL, "123456", "Nueva2026!")))
                 .doesNotThrowAnyException();
     }
