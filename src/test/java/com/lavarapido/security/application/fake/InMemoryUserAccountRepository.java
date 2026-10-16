@@ -68,6 +68,7 @@ public class InMemoryUserAccountRepository implements UserAccountRepository {
         long id = account.id() == null ? nextUserId++ : account.id();
         UserAccount stored = UserAccount.reconstitute(id, person, account.username(), account.passwordHash(),
                 account.isActive(), account.lastLogin(), account.roles());
+        stored.restoreLegalConsent(account.termsAcceptedAt(), account.dataPolicyAcceptedAt());
         accounts.put(id, stored);
         return stored;
     }

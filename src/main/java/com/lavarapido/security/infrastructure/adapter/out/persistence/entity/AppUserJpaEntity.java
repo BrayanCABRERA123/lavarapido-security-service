@@ -48,6 +48,13 @@ public class AppUserJpaEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    // aceptación de los documentos legales al registrarse (migración 039)
+    @Column(name = "terms_accepted_at")
+    private Instant termsAcceptedAt;
+
+    @Column(name = "data_policy_accepted_at")
+    private Instant dataPolicyAcceptedAt;
+
     /** {@code security.user_role}: su llave subrogada {@code user_role_id} es una columna IDENTITY. */
     @ManyToMany(fetch = FetchType.LAZY)
     @BatchSize(size = 50)
@@ -113,6 +120,19 @@ public class AppUserJpaEntity {
 
     public void setLastLogin(Instant lastLogin) {
         this.lastLogin = lastLogin;
+    }
+
+    public Instant getTermsAcceptedAt() {
+        return termsAcceptedAt;
+    }
+
+    public Instant getDataPolicyAcceptedAt() {
+        return dataPolicyAcceptedAt;
+    }
+
+    public void setLegalConsent(Instant termsAcceptedAt, Instant dataPolicyAcceptedAt) {
+        this.termsAcceptedAt = termsAcceptedAt;
+        this.dataPolicyAcceptedAt = dataPolicyAcceptedAt;
     }
 
     public Set<RoleJpaEntity> getRoles() {
