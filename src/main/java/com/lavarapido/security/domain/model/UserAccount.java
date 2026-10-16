@@ -34,6 +34,9 @@ public final class UserAccount {
     // fecha de registro; null mientras la cuenta no se ha guardado
     private final Instant createdAt;
     private final Set<RoleCode> roles;
+    // aceptación de los Términos y de la Política de Tratamiento de Datos (null: no consta)
+    private Instant termsAcceptedAt;
+    private Instant dataPolicyAcceptedAt;
 
     private UserAccount(Long id, Person person, EmailAddress username, HashedPassword passwordHash,
                         boolean active, Instant lastLogin, Instant createdAt, Set<RoleCode> roles) {
@@ -69,6 +72,30 @@ public final class UserAccount {
                                            boolean active, Instant lastLogin, Instant createdAt, Set<RoleCode> roles) {
         return new UserAccount(Objects.requireNonNull(id, "id"), person, username, passwordHash, active, lastLogin,
                 createdAt, roles);
+    }
+
+    /**
+     * La persona aceptó los Términos y la Política de Tratamiento de Datos al registrarse. Se guarda
+     * la primera aceptación: volver a llamarlo no cambia la fecha.
+     */
+    public void acceptLegalDocuments(Instant at) {
+        Objects.requireNonNull(at, "at");
+        if (termsAcceptedAt == null) termsAcceptedAt = at;
+        if (dataPolicyAcceptedAt == null) dataPolicyAcceptedAt = at;
+    }
+
+    /** Solo para reconstruir la cuenta desde la base. */
+    public void restoreLegalConsent(Instant termsAcceptedAt, Instant dataPolicyAcceptedAt) {
+        this.termsAcceptedAt = termsAcceptedAt;
+        this.dataPolicyAcceptedAt = dataPolicyAcceptedAt;
+    }
+
+    public Instant termsAcceptedAt() {
+        return termsAcceptedAt;
+    }
+
+    public Instant dataPolicyAcceptedAt() {
+        return dataPolicyAcceptedAt;
     }
 
     public void ensureCanAuthenticate() {

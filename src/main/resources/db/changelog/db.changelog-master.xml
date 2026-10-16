@@ -22,5 +22,6 @@
     <include file="db/changelog/034-security-login-lockout.sql"/>
     <include file="db/changelog/035-security-person-address.sql"/>
     <include file="db/changelog/036-security-app-user-created-at.sql"/>
+    <include file="db/changelog/039-security-app-user-legal-consent.sql"/>
 
 </databaseChangeLog>

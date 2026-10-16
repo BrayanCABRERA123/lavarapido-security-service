@@ -50,7 +50,8 @@ public class AccountRegistrationService implements RegisterUserUseCase, CreateUs
     @Override
     public UserAccountView register(RegisterUserCommand command) {
         UserAccount account = open(command.documentNumber(), command.firstName(), command.lastName(),
-                command.email(), command.phone(), command.password(), Set.of(RoleCode.CLIENT), false);
+                command.email(), command.phone(), command.password(), Set.of(RoleCode.CLIENT), false,
+                command.acceptsTerms() && command.acceptsDataPolicy());
         return UserAccountView.from(account);
     }
 
@@ -60,13 +61,17 @@ public class AccountRegistrationService implements RegisterUserUseCase, CreateUs
             throw new InvalidValueException("INVALID_ROLES", "At least one role is required");
         }
         UserAccount account = open(command.documentNumber(), command.firstName(), command.lastName(),
-                command.email(), command.phone(), command.password(), command.roles(), true);
+                command.email(), command.phone(), command.password(), command.roles(), true, false);
         return UserAccountView.from(account);
     }
 
-    /** @param createdByAdmin la abre un administrador (la persona no eligió su contraseña) */
+    /**
+     * @param createdByAdmin la abre un administrador (la persona no eligió su contraseña)
+     * @param acceptedLegalDocuments marcó los Términos y la Política de Tratamiento de Datos (Ley 1581)
+     */
     private UserAccount open(String rawDocument, String firstName, String lastName, String rawEmail,
-                             String rawPhone, String rawPassword, Set<RoleCode> roles, boolean createdByAdmin) {
+                             String rawPhone, String rawPassword, Set<RoleCode> roles, boolean createdByAdmin,
+                             boolean acceptedLegalDocuments) {
         DocumentNumber document = DocumentNumber.of(rawDocument);
         PersonName name = PersonName.of(firstName, lastName);
         EmailAddress email = EmailAddress.of(rawEmail);
@@ -82,6 +87,9 @@ public class AccountRegistrationService implements RegisterUserUseCase, CreateUs
                 .orElseGet(() -> Person.create(document, name, phone, email));
 
         UserAccount account = UserAccount.create(person, email, passwordHasher.hash(rawPassword), roles);
+        if (acceptedLegalDocuments) {
+            account.acceptLegalDocuments(clock.instant());
+        }
         UserAccount saved = accounts.save(account);
 
         // El evento sale después del commit (cross-cutting.md §6): con MESSAGING_ENABLED=true lo

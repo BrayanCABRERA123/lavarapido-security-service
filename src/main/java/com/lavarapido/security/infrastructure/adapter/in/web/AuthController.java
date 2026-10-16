@@ -64,7 +64,8 @@ class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     UserResponse register(@Valid @RequestBody RegisterRequest request) {
         return UserResponse.from(registerUser.register(new RegisterUserCommand(request.documentNumber(),
-                request.firstName(), request.lastName(), request.email(), request.phone(), request.password())));
+                request.firstName(), request.lastName(), request.email(), request.phone(), request.password(),
+                Boolean.TRUE.equals(request.acceptsTerms()), Boolean.TRUE.equals(request.acceptsDataPolicy()))));
     }
 
     @PostMapping("/login")

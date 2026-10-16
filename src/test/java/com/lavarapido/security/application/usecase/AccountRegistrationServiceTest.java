@@ -52,6 +52,26 @@ class AccountRegistrationServiceTest {
     }
 
     @Test
+    void storesWhenTheLegalDocumentsWereAccepted() {
+        UserAccountView view = service.register(new RegisterUserCommand("1023456789", "Ana", "Pérez",
+                "ana@gmail.com", null, "Lavado2026!", true, true));
+
+        UserAccount stored = accounts.findById(view.id()).orElseThrow();
+        assertThat(stored.termsAcceptedAt()).isEqualTo(Instant.parse("2026-09-29T15:00:00Z"));
+        assertThat(stored.dataPolicyAcceptedAt()).isEqualTo(Instant.parse("2026-09-29T15:00:00Z"));
+    }
+
+    @Test
+    void noConsentIsRecordedWhenTheBoxesAreNotSent() {
+        UserAccountView withoutBoxes = service.register(ana());
+        UserAccountView onlyTerms = service.register(new RegisterUserCommand("80000002", "Luis", "Gómez",
+                "luis@gmail.com", null, "Lavado2026!", true, false));
+
+        assertThat(accounts.findById(withoutBoxes.id()).orElseThrow().termsAcceptedAt()).isNull();
+        assertThat(accounts.findById(onlyTerms.id()).orElseThrow().dataPolicyAcceptedAt()).isNull();
+    }
+
+    @Test
     void theSameEmailCannotOpenTwoAccounts() {
         service.register(ana());
 
