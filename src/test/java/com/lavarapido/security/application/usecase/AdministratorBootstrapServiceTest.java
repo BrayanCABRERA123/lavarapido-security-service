@@ -75,6 +75,15 @@ class AdministratorBootstrapServiceTest {
     }
 
     @Test
+    void tellsWhetherAnAdministratorExists() {
+        assertThat(bootstrap.administratorExists()).isFalse();
+
+        bootstrap.ensureAdministrator(admin("dueno@gmail.com", "Lavado2026!", Set.of(RoleCode.ADMIN)));
+
+        assertThat(bootstrap.administratorExists()).isTrue();
+    }
+
+    @Test
     void aWeakPasswordIsRejectedLikeAnyOtherAccount() {
         assertThatThrownBy(() -> bootstrap.ensureAdministrator(admin("dueno@gmail.com", "123", Set.of(RoleCode.ADMIN))))
                 .isInstanceOf(WeakPasswordException.class);

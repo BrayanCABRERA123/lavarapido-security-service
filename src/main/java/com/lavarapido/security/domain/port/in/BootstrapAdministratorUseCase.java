@@ -10,6 +10,9 @@ import java.util.Optional;
  */
 public interface BootstrapAdministratorUseCase {
 
+    /** Si ya existe al menos un administrador (activo o no). */
+    boolean administratorExists();
+
     /**
      * Crea la cuenta como ADMIN si no existe ningún administrador (se ignoran los roles del comando).
      *
