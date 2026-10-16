@@ -28,10 +28,18 @@ public class AdministratorBootstrapService implements BootstrapAdministratorUseC
         this.createAccount = createAccount;
     }
 
+    // dentro de una transacción: la cuenta que se lee trae los roles con carga diferida, y fuera de
+    // la sesión de la base esa carga falla (LazyInitializationException al arrancar con admins)
+    @Override
+    @Transactional(readOnly = true)
+    public boolean administratorExists() {
+        return accounts.findAll(RoleCode.ADMIN, 0, 1).totalElements() > 0;
+    }
+
     @Override
     @Transactional
     public Optional<UserAccountView> ensureAdministrator(CreateUserAccountCommand administrator) {
-        if (accounts.findAll(RoleCode.ADMIN, 0, 1).totalElements() > 0) {
+        if (administratorExists()) {
             return Optional.empty();
         }
         CreateUserAccountCommand asAdmin = new CreateUserAccountCommand(administrator.documentNumber(),
