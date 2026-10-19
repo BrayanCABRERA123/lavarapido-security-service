@@ -1,4 +1,9 @@
 spring:
+  # respuestas de error sin mensajes internos ni trazas (en Spring Boot 4 reemplaza a server.error.*)
+  web:
+    error:
+      include-message: never
+      include-stacktrace: never
   application:
     name: security-service
   # En local se usa el perfil dev salvo que SPRING_PROFILES_ACTIVE diga otra cosa.
@@ -63,9 +68,6 @@ spring:
 server:
   port: ${PORT:3001}
   shutdown: graceful
-  error:
-    include-message: never
-    include-stacktrace: never
 
 security:
   jwt:
