@@ -1,8 +1,10 @@
 package com.lavarapido.security.application.usecase;
 
 import com.lavarapido.security.domain.event.AccountDeactivated;
+import com.lavarapido.security.domain.exception.CannotDisableOwnAccountException;
 import com.lavarapido.security.domain.exception.IncorrectCurrentPasswordException;
 import com.lavarapido.security.domain.exception.UserNotFoundException;
+import com.lavarapido.security.domain.model.RoleCode;
 import com.lavarapido.security.domain.model.UserAccount;
 import com.lavarapido.security.domain.port.in.DeactivateOwnAccountUseCase;
 import com.lavarapido.security.domain.port.out.DomainEventPublisher;
@@ -38,6 +40,11 @@ public class AccountDeactivationService implements DeactivateOwnAccountUseCase {
     @Override
     public void deactivateOwnAccount(DeactivateOwnAccountCommand command) {
         UserAccount account = accounts.findById(command.userId()).orElseThrow(UserNotFoundException::new);
+
+        // un administrador no cierra su propia cuenta: el lavadero se quedaría sin quien lo gestione
+        if (account.hasRole(RoleCode.ADMIN)) {
+            throw new CannotDisableOwnAccountException();
+        }
 
         // se pide la contraseña para que nadie cierre la cuenta desde una sesión que quedó abierta
         if (!passwordHasher.matches(command.currentPassword(), account.passwordHash())) {
