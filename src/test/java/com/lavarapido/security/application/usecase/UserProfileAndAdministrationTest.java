@@ -9,6 +9,8 @@ import com.lavarapido.security.application.fake.InMemoryUserAccountRepository;
 import com.lavarapido.security.domain.event.AccountDeactivated;
 import com.lavarapido.security.domain.event.PasswordChanged;
 import com.lavarapido.security.domain.exception.AccountDisabledException;
+import com.lavarapido.security.domain.exception.AdminAccountCannotBeDisabledException;
+import com.lavarapido.security.domain.exception.CannotChangeOwnRoleException;
 import com.lavarapido.security.domain.exception.CannotDisableOwnAccountException;
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.InvalidCredentialsException;
@@ -127,6 +129,33 @@ class UserProfileAndAdministrationTest {
         void disablesAndReEnablesAnAccount() {
             assertThat(service.changeStatus(anaId, false, 500).active()).isFalse();
             assertThat(service.changeStatus(anaId, true, 500).active()).isTrue();
+        }
+
+        @Test
+        void anAdministratorAccountCannotBeDisabledUntilItsRoleChanges() {
+            service.changeRole(anaId, RoleCode.ADMIN, 500);
+
+            assertThatThrownBy(() -> service.changeStatus(anaId, false, 500))
+                    .isInstanceOf(AdminAccountCannotBeDisabledException.class);
+
+            service.changeRole(anaId, RoleCode.OPERATOR, 500);
+            assertThat(service.changeStatus(anaId, false, 500).active()).isFalse();
+        }
+
+        @Test
+        void changingTheRoleReplacesItAndClosesTheSessions() {
+            authentication.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null));
+
+            UserAccountView changed = service.changeRole(anaId, RoleCode.OPERATOR, 500);
+
+            assertThat(changed.roles()).containsExactly(RoleCode.OPERATOR);
+            assertThat(sessions.openSessionsOf(anaId)).isZero();
+        }
+
+        @Test
+        void nobodyChangesTheirOwnRole() {
+            assertThatThrownBy(() -> service.changeRole(anaId, RoleCode.CLIENT, anaId))
+                    .isInstanceOf(CannotChangeOwnRoleException.class);
         }
 
         @Test

@@ -7,6 +7,7 @@ import com.lavarapido.security.domain.model.PageResult;
 import com.lavarapido.security.domain.model.RoleCode;
 import com.lavarapido.security.domain.port.in.AuthenticateUserUseCase;
 import com.lavarapido.security.domain.port.in.AuthenticationResult;
+import com.lavarapido.security.domain.port.in.ChangeAccountRoleUseCase;
 import com.lavarapido.security.domain.port.in.ChangeAccountStatusUseCase;
 import com.lavarapido.security.domain.port.in.ChangeEmailUseCase;
 import com.lavarapido.security.domain.port.in.ChangePasswordUseCase;
@@ -100,6 +101,7 @@ class ApiSecurityWebTest {
     @MockitoBean private CreateUserAccountUseCase createAccount;
     @MockitoBean private ListUserAccountsUseCase listAccounts;
     @MockitoBean private ChangeAccountStatusUseCase changeStatus;
+    @MockitoBean private ChangeAccountRoleUseCase changeRole;
     @MockitoBean private DeactivateOwnAccountUseCase deactivateOwnAccount;
     @MockitoBean private ChangeEmailUseCase changeEmail;
     @MockitoBean private ListRolePermissionsUseCase listRolePermissions;
