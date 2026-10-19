@@ -1,6 +1,7 @@
 package com.lavarapido.security.infrastructure.adapter.in.web;
 
 import com.lavarapido.security.domain.model.RoleCode;
+import com.lavarapido.security.domain.port.in.ChangeAccountRoleUseCase;
 import com.lavarapido.security.domain.port.in.ChangeAccountStatusUseCase;
 import com.lavarapido.security.domain.port.in.CreateUserAccountUseCase;
 import com.lavarapido.security.domain.port.in.CreateUserAccountUseCase.CreateUserAccountCommand;
@@ -8,6 +9,7 @@ import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase;
 import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase.ListUserAccountsQuery;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.CreateUserRequest;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.PageResponse;
+import com.lavarapido.security.infrastructure.adapter.in.web.dto.UpdateRoleRequest;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.UpdateStatusRequest;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.UserResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,9 +36,11 @@ class UserAdministrationController {
     private final CreateUserAccountUseCase createAccount;
     private final ListUserAccountsUseCase listAccounts;
     private final ChangeAccountStatusUseCase changeStatus;
+    private final ChangeAccountRoleUseCase changeRole;
 
     UserAdministrationController(CreateUserAccountUseCase createAccount, ListUserAccountsUseCase listAccounts,
-                                 ChangeAccountStatusUseCase changeStatus) {
+                                 ChangeAccountStatusUseCase changeStatus, ChangeAccountRoleUseCase changeRole) {
+        this.changeRole = changeRole;
         this.createAccount = createAccount;
         this.listAccounts = listAccounts;
         this.changeStatus = changeStatus;
@@ -62,6 +66,13 @@ class UserAdministrationController {
     UserResponse changeStatus(@PathVariable long userId, @Valid @RequestBody UpdateStatusRequest request,
                               @AuthenticationPrincipal Jwt jwt) {
         return UserResponse.from(changeStatus.changeStatus(userId, request.active(),
+                AuthenticatedUser.from(jwt).userId()));
+    }
+
+    @PatchMapping("/{userId}/role")
+    UserResponse changeRole(@PathVariable long userId, @Valid @RequestBody UpdateRoleRequest request,
+                            @AuthenticationPrincipal Jwt jwt) {
+        return UserResponse.from(changeRole.changeRole(userId, request.role(),
                 AuthenticatedUser.from(jwt).userId()));
     }
 }

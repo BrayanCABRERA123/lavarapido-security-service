@@ -138,6 +138,13 @@ public final class UserAccount {
         this.active = false;
     }
 
+    /** Cada cuenta tiene un solo tipo de usuario: el nuevo rol reemplaza al anterior. */
+    public void changeRole(RoleCode role) {
+        Objects.requireNonNull(role, "role");
+        roles.clear();
+        roles.add(role);
+    }
+
     public boolean hasRole(RoleCode role) {
         return roles.contains(role);
     }
