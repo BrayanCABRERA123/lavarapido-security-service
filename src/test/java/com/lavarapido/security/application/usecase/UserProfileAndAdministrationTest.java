@@ -166,6 +166,16 @@ class UserProfileAndAdministrationTest {
         }
 
         @Test
+        void anAdministratorCannotCloseTheirOwnAccount() {
+            long adminId = registration.createAccount(new CreateUserAccountCommand("80000002", "Sara", "Ruiz",
+                    "sara@gmail.com", null, "Admin2026!", Set.of(RoleCode.ADMIN))).id();
+
+            assertThatThrownBy(() -> service.deactivateOwnAccount(new DeactivateOwnAccountCommand(adminId, "Admin2026!")))
+                    .isInstanceOf(CannotDisableOwnAccountException.class);
+            assertThat(accounts.findById(adminId).orElseThrow().isActive()).isTrue();
+        }
+
+        @Test
         void theAccountIsKeptNotDeleted() {
             service.deactivateOwnAccount(new DeactivateOwnAccountCommand(anaId, "Lavado2026!"));
 

@@ -1,6 +1,6 @@
 package com.lavarapido.security.domain.exception;
 
-/** Un administrador intentó desactivar la cuenta con la que tiene la sesión abierta. */
+/** Un administrador intentó desactivar su propia cuenta (desde Gestión o desde su perfil). */
 public class CannotDisableOwnAccountException extends DomainException {
 
     public CannotDisableOwnAccountException() {
