@@ -2,13 +2,11 @@ package com.lavarapido.security.application.usecase;
 
 import com.lavarapido.security.domain.event.AccountDeactivated;
 import com.lavarapido.security.domain.exception.AdminAccountCannotBeDisabledException;
-import com.lavarapido.security.domain.exception.CannotChangeOwnRoleException;
 import com.lavarapido.security.domain.exception.CannotDisableOwnAccountException;
 import com.lavarapido.security.domain.exception.UserNotFoundException;
 import com.lavarapido.security.domain.model.PageResult;
 import com.lavarapido.security.domain.model.RoleCode;
 import com.lavarapido.security.domain.model.UserAccount;
-import com.lavarapido.security.domain.port.in.ChangeAccountRoleUseCase;
 import com.lavarapido.security.domain.port.in.ChangeAccountStatusUseCase;
 import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase;
 import com.lavarapido.security.domain.port.in.UserAccountView;
@@ -24,8 +22,7 @@ import java.time.Instant;
 /** Gestión de cuentas reservada a los administradores. */
 @Service
 @Transactional
-public class UserAdministrationService implements ListUserAccountsUseCase, ChangeAccountStatusUseCase,
-        ChangeAccountRoleUseCase {
+public class UserAdministrationService implements ListUserAccountsUseCase, ChangeAccountStatusUseCase {
 
     static final int MAX_PAGE_SIZE = 100;
 
@@ -56,7 +53,7 @@ public class UserAdministrationService implements ListUserAccountsUseCase, Chang
             throw new CannotDisableOwnAccountException();
         }
         UserAccount account = accounts.findById(targetUserId).orElseThrow(UserNotFoundException::new);
-        // un administrador no se desactiva: primero se le cambia el rol (el lavadero no queda sin gestión)
+        // un administrador no se desactiva (el lavadero no queda sin gestión)
         if (!active && account.hasRole(RoleCode.ADMIN)) {
             throw new AdminAccountCannotBeDisabledException();
         }
@@ -76,22 +73,6 @@ public class UserAdministrationService implements ListUserAccountsUseCase, Chang
             events.publish(new AccountDeactivated(targetUserId, actingUserId,
                     AccountDeactivated.Reason.DISABLED_BY_ADMIN, now));
         }
-        return saved;
-    }
-
-    @Override
-    public UserAccountView changeRole(long targetUserId, RoleCode role, long actingUserId) {
-        if (targetUserId == actingUserId) {
-            throw new CannotChangeOwnRoleException();
-        }
-        UserAccount account = accounts.findById(targetUserId).orElseThrow(UserNotFoundException::new);
-        if (account.hasRole(role) && account.roles().size() == 1) {
-            return UserAccountView.from(account);
-        }
-        account.changeRole(role);
-        UserAccountView saved = UserAccountView.from(accounts.save(account));
-        // sus tokens llevan el rol anterior: se cierran sus sesiones y entra de nuevo con el rol nuevo
-        sessions.revokeAll(targetUserId, clock.instant());
         return saved;
     }
 }

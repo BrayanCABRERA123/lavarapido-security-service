@@ -3,7 +3,6 @@ package com.lavarapido.security.infrastructure.adapter.in.web;
 import com.lavarapido.security.domain.exception.AccountDisabledException;
 import com.lavarapido.security.domain.exception.AccountLockedException;
 import com.lavarapido.security.domain.exception.AdminAccountCannotBeDisabledException;
-import com.lavarapido.security.domain.exception.CannotChangeOwnRoleException;
 import com.lavarapido.security.domain.exception.CannotDisableOwnAccountException;
 import com.lavarapido.security.domain.exception.DocumentAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.DomainException;
@@ -90,7 +89,6 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case AccountLockedException ignored -> HttpStatus.LOCKED;
             case CannotDisableOwnAccountException ignored -> HttpStatus.FORBIDDEN;
             case AdminAccountCannotBeDisabledException ignored -> HttpStatus.FORBIDDEN;
-            case CannotChangeOwnRoleException ignored -> HttpStatus.FORBIDDEN;
             case UserNotFoundException ignored -> HttpStatus.NOT_FOUND;
             case EmailAlreadyRegisteredException ignored -> HttpStatus.CONFLICT;
             case DocumentAlreadyRegisteredException ignored -> HttpStatus.CONFLICT;
