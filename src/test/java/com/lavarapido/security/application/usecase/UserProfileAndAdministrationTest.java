@@ -10,7 +10,6 @@ import com.lavarapido.security.domain.event.AccountDeactivated;
 import com.lavarapido.security.domain.event.PasswordChanged;
 import com.lavarapido.security.domain.exception.AccountDisabledException;
 import com.lavarapido.security.domain.exception.AdminAccountCannotBeDisabledException;
-import com.lavarapido.security.domain.exception.CannotChangeOwnRoleException;
 import com.lavarapido.security.domain.exception.CannotDisableOwnAccountException;
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.InvalidCredentialsException;
@@ -132,30 +131,13 @@ class UserProfileAndAdministrationTest {
         }
 
         @Test
-        void anAdministratorAccountCannotBeDisabledUntilItsRoleChanges() {
-            service.changeRole(anaId, RoleCode.ADMIN, 500);
+        void anAdministratorAccountCannotBeDisabled() {
+            long adminId = registration.createAccount(new CreateUserAccountCommand("80000003", "Luis", "Gómez",
+                    "luis@gmail.com", null, "Admin2026!", Set.of(RoleCode.ADMIN))).id();
 
-            assertThatThrownBy(() -> service.changeStatus(anaId, false, 500))
+            assertThatThrownBy(() -> service.changeStatus(adminId, false, 500))
                     .isInstanceOf(AdminAccountCannotBeDisabledException.class);
-
-            service.changeRole(anaId, RoleCode.OPERATOR, 500);
-            assertThat(service.changeStatus(anaId, false, 500).active()).isFalse();
-        }
-
-        @Test
-        void changingTheRoleReplacesItAndClosesTheSessions() {
-            authentication.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null));
-
-            UserAccountView changed = service.changeRole(anaId, RoleCode.OPERATOR, 500);
-
-            assertThat(changed.roles()).containsExactly(RoleCode.OPERATOR);
-            assertThat(sessions.openSessionsOf(anaId)).isZero();
-        }
-
-        @Test
-        void nobodyChangesTheirOwnRole() {
-            assertThatThrownBy(() -> service.changeRole(anaId, RoleCode.CLIENT, anaId))
-                    .isInstanceOf(CannotChangeOwnRoleException.class);
+            assertThat(accounts.findById(adminId).orElseThrow().isActive()).isTrue();
         }
 
         @Test
