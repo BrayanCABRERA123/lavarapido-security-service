@@ -227,6 +227,20 @@ class ApiSecurityWebTest {
     }
 
     @Test
+    void aTokenWithoutSessionIsNotTiedToOne() throws Exception {
+        // lo firman herramientas con el secreto (pruebas e2e); el login siempre pone el sid
+        JwtClaimsSet claims = JwtClaimsSet.builder().issuer(ISSUER).audience(List.of(AUDIENCE)).subject("42")
+                .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(600)).claim("roles", List.of("CLIENT"))
+                .build();
+        String token = jwtEncoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
+                .getTokenValue();
+        given(sessionStatus.isActive(anyLong(), anyLong())).willReturn(false);
+
+        mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
     void theProfileRequiresAToken() throws Exception {
         mvc.perform(get("/api/v1/users/me"))
                 .andExpect(status().isUnauthorized())
