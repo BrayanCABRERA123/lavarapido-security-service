@@ -27,6 +27,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -88,6 +89,16 @@ class AuthController {
     void logout(@AuthenticationPrincipal Jwt jwt) {
         AuthenticatedUser caller = AuthenticatedUser.from(jwt);
         logout.logout(caller.userId(), caller.sessionId());
+    }
+
+    /**
+     * 204 si el token es válido y su sesión sigue abierta; si no, 401 (lo resuelve el decoder). El
+     * gateway lo usa para cortar en todos los servicios los tokens de sesiones ya cerradas.
+     */
+    @GetMapping("/session")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void session() {
+        // sin cuerpo: llegar aquí ya significa que la sesión está abierta
     }
 
     /** Siempre 202, exista o no el correo: la respuesta no debe revelar cuentas. */

@@ -10,6 +10,7 @@ import com.lavarapido.security.domain.model.LoginLockout;
 import com.lavarapido.security.domain.port.in.AuthenticateUserUseCase;
 import com.lavarapido.security.domain.port.in.AuthenticationResult;
 import com.lavarapido.security.domain.port.in.LogoutUseCase;
+import com.lavarapido.security.domain.port.in.SessionStatusUseCase;
 import com.lavarapido.security.domain.port.in.UserAccountView;
 import com.lavarapido.security.domain.port.out.LoginLockoutRepository;
 import com.lavarapido.security.domain.port.out.PasswordHasher;
@@ -24,10 +25,10 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
-/** Inicio y cierre de sesión. */
+/** Inicio y cierre de sesión, y si la sesión de un token sigue abierta. */
 @Service
 @Transactional
-public class AuthenticationService implements AuthenticateUserUseCase, LogoutUseCase {
+public class AuthenticationService implements AuthenticateUserUseCase, LogoutUseCase, SessionStatusUseCase {
 
     private final UserAccountRepository accounts;
     private final UserSessionRepository sessions;
@@ -100,6 +101,12 @@ public class AuthenticationService implements AuthenticateUserUseCase, LogoutUse
     @Override
     public void logout(long userId, long sessionId) {
         sessions.revoke(sessionId, userId, clock.instant());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isActive(long userId, long sessionId) {
+        return sessions.isActive(sessionId, userId, clock.instant());
     }
 
     private Optional<UserAccount> findByEmail(String rawEmail) {

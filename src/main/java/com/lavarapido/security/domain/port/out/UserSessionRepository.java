@@ -13,4 +13,7 @@ public interface UserSessionRepository {
 
     /** Cierra todas las sesiones abiertas del usuario (cuenta desactivada: sale de todos los equipos). */
     void revokeAll(long userId, Instant revokedAt);
+
+    /** La sesión existe, es del usuario, no se cerró y no ha vencido en {@code now}. */
+    boolean isActive(long sessionId, long userId, Instant now);
 }

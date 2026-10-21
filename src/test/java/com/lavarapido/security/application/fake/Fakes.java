@@ -151,6 +151,13 @@ public final class Fakes {
             sessions.keySet().forEach(sessionId -> revoke(sessionId, userId, revokedAt));
         }
 
+        @Override
+        public boolean isActive(long sessionId, long userId, Instant now) {
+            Session session = sessions.get(sessionId);
+            return session != null && session.userId() == userId && session.revokedAt() == null
+                    && session.expiresAt().isAfter(now);
+        }
+
         public long openSessionsOf(long userId) {
             return sessions.values().stream()
                     .filter(session -> session.userId() == userId && session.revokedAt() == null)

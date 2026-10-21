@@ -22,6 +22,7 @@ import com.lavarapido.security.domain.port.in.PreferenceView;
 import com.lavarapido.security.domain.port.in.RegisterUserUseCase;
 import com.lavarapido.security.domain.port.in.RequestPasswordResetUseCase;
 import com.lavarapido.security.domain.port.in.ResetPasswordUseCase;
+import com.lavarapido.security.domain.port.in.SessionStatusUseCase;
 import com.lavarapido.security.domain.port.in.UpdateRolePermissionsUseCase;
 import com.lavarapido.security.domain.port.in.UpdateUserPreferencesUseCase;
 import com.lavarapido.security.domain.port.in.PersonAddressUseCase;
@@ -29,6 +30,7 @@ import com.lavarapido.security.domain.port.in.UpdateUserProfileUseCase;
 import com.lavarapido.security.domain.port.in.UserAccountView;
 import com.lavarapido.security.domain.port.in.VerifyPasswordResetCodeUseCase;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -50,6 +52,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -88,6 +91,7 @@ class ApiSecurityWebTest {
     @MockitoBean private RegisterUserUseCase registerUser;
     @MockitoBean private AuthenticateUserUseCase authenticateUser;
     @MockitoBean private LogoutUseCase logout;
+    @MockitoBean private SessionStatusUseCase sessionStatus;
     @MockitoBean private RequestPasswordResetUseCase requestPasswordReset;
     @MockitoBean private VerifyPasswordResetCodeUseCase verifyPasswordResetCode;
     @MockitoBean private ResetPasswordUseCase resetPassword;
@@ -120,6 +124,12 @@ class ApiSecurityWebTest {
                 .build();
         return jwtEncoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
                 .getTokenValue();
+    }
+
+    /** Por defecto la sesión del token sigue abierta; las pruebas de sesión cerrada lo cambian. */
+    @BeforeEach
+    void openSessions() {
+        given(sessionStatus.isActive(anyLong(), anyLong())).willReturn(true);
     }
 
     private String validToken(List<String> roles) {
@@ -188,6 +198,46 @@ class ApiSecurityWebTest {
         mvc.perform(post("/api/v1/auth/password/forgot").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"nadie@gmail.com\"}"))
                 .andExpect(status().isAccepted());
+    }
+
+    @Test
+    void theSessionCheckAnswers204WhileTheSessionIsOpen() throws Exception {
+        mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + validToken(List.of("CLIENT"))))
+                .andExpect(status().isNoContent());
+        verify(sessionStatus).isActive(42L, 1L);
+    }
+
+    @Test
+    void theSessionCheckRequiresAToken() throws Exception {
+        mvc.perform(get("/api/v1/auth/session"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void aTokenOfAClosedSessionNoLongerWorks() throws Exception {
+        // logout, cuenta inhabilitada o desactivada: el token sigue firmado y vigente pero ya no sirve
+        given(sessionStatus.isActive(42L, 1L)).willReturn(false);
+        String token = validToken(List.of("CLIENT"));
+
+        mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/users/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void aTokenWithoutSessionIsNotTiedToOne() throws Exception {
+        // lo firman herramientas con el secreto (pruebas e2e); el login siempre pone el sid
+        JwtClaimsSet claims = JwtClaimsSet.builder().issuer(ISSUER).audience(List.of(AUDIENCE)).subject("42")
+                .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(600)).claim("roles", List.of("CLIENT"))
+                .build();
+        String token = jwtEncoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
+                .getTokenValue();
+        given(sessionStatus.isActive(anyLong(), anyLong())).willReturn(false);
+
+        mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
     }
 
     @Test
