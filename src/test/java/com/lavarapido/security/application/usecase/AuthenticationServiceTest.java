@@ -93,6 +93,26 @@ class AuthenticationServiceTest {
         assertThat(sessions.sessions.get(1L).revokedAt()).isEqualTo(NOW);
     }
 
+    @Test
+    void aSessionStaysActiveOnlyUntilItIsClosedOrExpires() {
+        service.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null));
+        assertThat(service.isActive(anaId, 1L)).isTrue();
+        // la sesión de otro usuario con el mismo id no cuenta
+        assertThat(service.isActive(anaId + 99, 1L)).isFalse();
+
+        clock.advance(Duration.ofMinutes(61));
+        assertThat(service.isActive(anaId, 1L)).isFalse();
+    }
+
+    @Test
+    void aSessionIsNoLongerActiveAfterLogout() {
+        service.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null));
+
+        service.logout(anaId, 1L);
+
+        assertThat(service.isActive(anaId, 1L)).isFalse();
+    }
+
     private void failLogin() {
         assertThatThrownBy(() -> service.login(new LoginCommand("ana@gmail.com", "WrongPass1!", null, null)))
                 .isInstanceOf(InvalidCredentialsException.class);

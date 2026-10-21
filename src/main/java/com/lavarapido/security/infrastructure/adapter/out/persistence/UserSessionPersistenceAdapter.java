@@ -40,6 +40,11 @@ class UserSessionPersistenceAdapter implements UserSessionRepository {
                 .forEach(session -> session.setRevokedAt(revokedAt));
     }
 
+    @Override
+    public boolean isActive(long sessionId, long userId, Instant now) {
+        return sessions.existsByIdAndUserIdAndRevokedAtIsNullAndExpiresAtAfter(sessionId, userId, now);
+    }
+
     private static String truncate(String value, int maxLength) {
         return value == null || value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
