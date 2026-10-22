@@ -22,10 +22,12 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /** Dobles de prueba escritos a mano para los puertos de salida. */
 public final class Fakes {
@@ -183,9 +185,20 @@ public final class Fakes {
     public static class InMemoryLoginLockoutRepository implements LoginLockoutRepository {
 
         public final Map<Long, LoginLockout> rows = new HashMap<>();
+        /** cuentas bloqueadas en la transacción actual; leer sin bloquear se anota en unlockedReads */
+        public final Set<Long> locked = new HashSet<>();
+        public int unlockedReads;
+
+        @Override
+        public void lock(long userId) {
+            locked.add(userId);
+        }
 
         @Override
         public Optional<LoginLockout> findByUserId(long userId) {
+            if (!locked.contains(userId)) {
+                unlockedReads++;
+            }
             return Optional.ofNullable(rows.get(userId));
         }
 

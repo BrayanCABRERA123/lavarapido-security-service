@@ -71,6 +71,8 @@ public class AuthenticationService implements AuthenticateUserUseCase, LogoutUse
             throw new InvalidCredentialsException();
         }
         UserAccount account = found.get();
+        // después de comparar la contraseña (lo lento) para no tener el candado mientras tanto
+        lockouts.lock(account.id());
         LoginLockout lockout = lockouts.findByUserId(account.id()).orElse(LoginLockout.none(account.id()));
         if (lockout.isLocked(now)) {
             throw new AccountLockedException(lockout.lockedUntil());

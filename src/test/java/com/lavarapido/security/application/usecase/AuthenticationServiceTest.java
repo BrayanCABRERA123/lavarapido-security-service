@@ -160,6 +160,15 @@ class AuthenticationServiceTest {
     }
 
     @Test
+    void theAttemptsAreLockedBeforeBeingReadSoConcurrentFailuresAreNotLost() {
+        failLogin();
+        service.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null));
+
+        assertThat(lockouts.locked).containsExactly(anaId);
+        assertThat(lockouts.unlockedReads).isZero();
+    }
+
+    @Test
     void unknownEmailsAreNeverLockedAndKeepTheGenericError() {
         for (int i = 0; i < 6; i++) {
             assertThatThrownBy(() -> service.login(new LoginCommand("nadie@gmail.com", "Lavado2026!", null, null)))
