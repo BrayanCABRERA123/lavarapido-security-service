@@ -77,8 +77,9 @@ class UserProfileController {
     @PutMapping("/password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void changePassword(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody ChangePasswordRequest request) {
-        changePassword.changePassword(new ChangePasswordCommand(userId(jwt), request.currentPassword(),
-                request.newPassword()));
+        AuthenticatedUser caller = AuthenticatedUser.from(jwt);
+        changePassword.changePassword(new ChangePasswordCommand(caller.userId(), caller.sessionId(),
+                request.currentPassword(), request.newPassword()));
     }
 
     /** Cambia el correo de login. Desde ahí se inicia sesión con el correo nuevo. */

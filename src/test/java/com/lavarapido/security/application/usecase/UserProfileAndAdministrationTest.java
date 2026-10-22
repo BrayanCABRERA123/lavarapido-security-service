@@ -63,7 +63,7 @@ class UserProfileAndAdministrationTest {
     class Profile {
 
         private final UserProfileService service =
-                new UserProfileService(accounts, hasher, new PasswordPolicy(), events, clock);
+                new UserProfileService(accounts, sessions, hasher, new PasswordPolicy(), events, clock);
 
         @Test
         void updatesNameAndPhoneButNotTheLogin() {
@@ -76,22 +76,35 @@ class UserProfileAndAdministrationTest {
 
         @Test
         void changingThePasswordRequiresTheCurrentOne() {
-            assertThatThrownBy(() -> service.changePassword(new ChangePasswordCommand(anaId, "Wrong2026!", "Nueva2026!")))
+            assertThatThrownBy(() -> service.changePassword(new ChangePasswordCommand(anaId, 0L, "Wrong2026!", "Nueva2026!")))
                     .isInstanceOf(IncorrectCurrentPasswordException.class);
         }
 
         @Test
         void theNewPasswordMustDifferFromTheCurrentOne() {
-            assertThatThrownBy(() -> service.changePassword(new ChangePasswordCommand(anaId, "Lavado2026!", "Lavado2026!")))
+            assertThatThrownBy(() -> service.changePassword(new ChangePasswordCommand(anaId, 0L, "Lavado2026!", "Lavado2026!")))
                     .isInstanceOf(SamePasswordException.class);
         }
 
         @Test
         void changesThePasswordAndPublishesTheEvent() {
-            service.changePassword(new ChangePasswordCommand(anaId, "Lavado2026!", "Nueva2026!"));
+            service.changePassword(new ChangePasswordCommand(anaId, 0L, "Lavado2026!", "Nueva2026!"));
 
             assertThat(hasher.matches("Nueva2026!", accounts.findById(anaId).orElseThrow().passwordHash())).isTrue();
             assertThat(events.events).singleElement().isInstanceOf(PasswordChanged.class);
+        }
+
+        @Test
+        void changingThePasswordClosesTheOtherSessionsButNotThisOne() {
+            authentication.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null));
+            authentication.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null));
+            long thisSession = 1L;
+            long otherSession = 2L;
+
+            service.changePassword(new ChangePasswordCommand(anaId, thisSession, "Lavado2026!", "Nueva2026!"));
+
+            assertThat(sessions.isActive(thisSession, anaId, clock.instant())).isTrue();
+            assertThat(sessions.isActive(otherSession, anaId, clock.instant())).isFalse();
         }
 
         @Test
@@ -237,8 +250,8 @@ class UserProfileAndAdministrationTest {
 
         @Test
         void aPasswordChangedFromTheProfileIsTheOneThatLogsIn() {
-            new UserProfileService(accounts, hasher, new PasswordPolicy(), events, clock)
-                    .changePassword(new ChangePasswordCommand(anaId, "Lavado2026!", "Nueva2026!"));
+            new UserProfileService(accounts, sessions, hasher, new PasswordPolicy(), events, clock)
+                    .changePassword(new ChangePasswordCommand(anaId, 0L, "Lavado2026!", "Nueva2026!"));
 
             assertThat(authentication.login(new LoginCommand("ana@gmail.com", "Nueva2026!", null, null)).user().id())
                     .isEqualTo(anaId);

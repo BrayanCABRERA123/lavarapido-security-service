@@ -18,6 +18,7 @@ import com.lavarapido.security.domain.port.out.ResetAttemptCounter;
 import com.lavarapido.security.domain.port.out.ResetCodeGenerator;
 import com.lavarapido.security.domain.port.out.ResetCodeNotifier;
 import com.lavarapido.security.domain.port.out.UserAccountRepository;
+import com.lavarapido.security.domain.port.out.UserSessionRepository;
 import com.lavarapido.security.domain.service.PasswordPolicy;
 import com.lavarapido.security.domain.service.PasswordRecoveryPolicy;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,7 @@ public class PasswordRecoveryService
     private final ResetAttemptCounter attemptCounter;
     private final DomainEventPublisher events;
     private final LoginLockoutRepository lockouts;
+    private final UserSessionRepository sessions;
     private final Clock clock;
 
     public PasswordRecoveryService(UserAccountRepository accounts, PasswordResetTokenRepository resetTokens,
@@ -59,8 +61,9 @@ public class PasswordRecoveryService
                                    PasswordRecoveryPolicy recoveryPolicy, ResetCodeGenerator codeGenerator,
                                    ResetCodeNotifier codeNotifier, ResetAttemptCounter attemptCounter,
                                    DomainEventPublisher events, LoginLockoutRepository lockouts,
-                                   Clock clock) {
+                                   UserSessionRepository sessions, Clock clock) {
         this.lockouts = lockouts;
+        this.sessions = sessions;
         this.accounts = accounts;
         this.resetTokens = resetTokens;
         this.passwordHasher = passwordHasher;
@@ -121,6 +124,8 @@ public class PasswordRecoveryService
         accounts.save(account);
         // con la contraseña nueva la cuenta vuelve a entrar aunque estuviera bloqueada (RF-004b)
         lockouts.clear(account.id());
+        // quien recupera no tiene sesión: se cierran todas, incluida la de quien conocía la clave vieja
+        sessions.revokeAll(account.id(), now);
         events.publish(new PasswordChanged(account.id(), PasswordChanged.Reason.RECOVERED, now));
     }
 
