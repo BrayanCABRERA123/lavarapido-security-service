@@ -45,9 +45,10 @@ class PasswordRecoveryServiceTest {
     private final PlainPasswordHasher hasher = new PlainPasswordHasher();
 
     private final Fakes.InMemoryLoginLockoutRepository lockouts = new Fakes.InMemoryLoginLockoutRepository();
+    private final Fakes.InMemoryUserSessionRepository sessions = new Fakes.InMemoryUserSessionRepository();
     private final PasswordRecoveryService service = new PasswordRecoveryService(accounts, tokens, hasher,
             new PasswordPolicy(), new PasswordRecoveryPolicy(Duration.ofMinutes(15), 3), codes, notifier,
-            new InMemoryResetAttemptCounter(), events, lockouts, clock);
+            new InMemoryResetAttemptCounter(), events, lockouts, sessions, clock);
 
     private long anaId;
 
@@ -176,5 +177,18 @@ class PasswordRecoveryServiceTest {
         service.resetPassword(new ResetPasswordCommand(EMAIL, code, "Nueva2026!"));
 
         assertThat(lockouts.rows).isEmpty();
+    }
+
+    @Test
+    void resettingThePasswordClosesEveryOpenSession() {
+        Instant now = clock.instant();
+        sessions.open(anaId, now, now.plus(Duration.ofHours(8)), "10.0.0.1", "web");
+        sessions.open(anaId, now, now.plus(Duration.ofHours(8)), "10.0.0.2", "app");
+        service.requestReset(new RequestPasswordResetCommand(EMAIL, "10.0.0.1"));
+        String code = notifier.lastCodeByEmail.get(EMAIL);
+
+        service.resetPassword(new ResetPasswordCommand(EMAIL, code, "Nueva2026!"));
+
+        assertThat(sessions.openSessionsOf(anaId)).isZero();
     }
 }
