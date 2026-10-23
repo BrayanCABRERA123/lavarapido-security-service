@@ -11,11 +11,16 @@ Needs the shared database from the `lavarapido-infra` repository, cloned next to
 ```bash
 cd ../lavarapido-infra && docker compose up -d     # first time: cp .env.example .env
 cd ../security-service
-./mvnw spring-boot:run                              # Windows: .\mvnw.cmd spring-boot:run
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev   # Windows: .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=dev"
 ./mvnw verify                                       # tests (no database needed)
 ```
 
 Secrets are read from `../lavarapido-infra/.env`; a `.env` in this folder overrides it.
+
+There is no default profile (E-05): turn on `dev` explicitly as above (`docker-compose.yml` already sets
+`SPRING_PROFILES_ACTIVE=dev`). With `dev`, one demo account per role (`admin@gmail.com`,
+`operador@gmail.com`, `cliente@gmail.com`) is created only if `DEMO_ADMIN_PASSWORD`,
+`DEMO_OPERATOR_PASSWORD` and `DEMO_CLIENT_PASSWORD` are set in `.env`; passwords are never in the code.
 
 **Swagger UI:** http://localhost:3001/swagger-ui.html (dev profile only; disabled elsewhere).
 Log in with `POST /api/v1/auth/login`, copy the `accessToken`, click **Authorize** and paste it.
