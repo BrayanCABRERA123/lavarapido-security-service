@@ -1,4 +1,4 @@
-# Solo para desarrollo local (perfil por defecto en application.yml).
+# Solo para desarrollo local: se activa con SPRING_PROFILES_ACTIVE=dev (docker-compose.yml ya lo pone).
 
 # Documentación interactiva: http://localhost:3001/swagger-ui.html
 springdoc:
