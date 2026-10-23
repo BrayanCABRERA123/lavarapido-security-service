@@ -35,6 +35,10 @@ public final class Person {
         this.name = Objects.requireNonNull(newName, "name");
     }
 
+    public void changeEmail(EmailAddress newEmail) {
+        this.email = Objects.requireNonNull(newEmail, "email");
+    }
+
     public void changePhone(PhoneNumber newPhone) {
         this.phone = newPhone;
     }

@@ -2,25 +2,35 @@ package com.lavarapido.security.infrastructure.config;
 
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.InvalidCredentialsException;
+import com.lavarapido.security.domain.exception.UserNotFoundException;
 import com.lavarapido.security.domain.model.PageResult;
 import com.lavarapido.security.domain.model.RoleCode;
 import com.lavarapido.security.domain.port.in.AuthenticateUserUseCase;
 import com.lavarapido.security.domain.port.in.AuthenticationResult;
 import com.lavarapido.security.domain.port.in.ChangeAccountStatusUseCase;
+import com.lavarapido.security.domain.port.in.ChangeEmailUseCase;
 import com.lavarapido.security.domain.port.in.ChangePasswordUseCase;
 import com.lavarapido.security.domain.port.in.CreateUserAccountUseCase;
+import com.lavarapido.security.domain.port.in.DeactivateOwnAccountUseCase;
 import com.lavarapido.security.domain.port.in.GetUserPreferencesUseCase;
 import com.lavarapido.security.domain.port.in.GetUserProfileUseCase;
+import com.lavarapido.security.domain.port.in.ListRolePermissionsUseCase;
 import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase;
+import com.lavarapido.security.domain.port.in.ListUserAccountsUseCase.ListUserAccountsQuery;
 import com.lavarapido.security.domain.port.in.LogoutUseCase;
+import com.lavarapido.security.domain.port.in.PreferenceView;
 import com.lavarapido.security.domain.port.in.RegisterUserUseCase;
 import com.lavarapido.security.domain.port.in.RequestPasswordResetUseCase;
 import com.lavarapido.security.domain.port.in.ResetPasswordUseCase;
+import com.lavarapido.security.domain.port.in.SessionStatusUseCase;
+import com.lavarapido.security.domain.port.in.UpdateRolePermissionsUseCase;
 import com.lavarapido.security.domain.port.in.UpdateUserPreferencesUseCase;
+import com.lavarapido.security.domain.port.in.PersonAddressUseCase;
 import com.lavarapido.security.domain.port.in.UpdateUserProfileUseCase;
 import com.lavarapido.security.domain.port.in.UserAccountView;
 import com.lavarapido.security.domain.port.in.VerifyPasswordResetCodeUseCase;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -42,6 +52,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -60,7 +71,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "security.jwt.issuer=" + ApiSecurityWebTest.ISSUER,
         "security.jwt.audience=" + ApiSecurityWebTest.AUDIENCE,
         "security.jwt.access-token-ttl=1h",
-        "security.password.bcrypt-strength=4"
+        "security.password.bcrypt-strength=4",
+        "app.internal.api-key=" + ApiSecurityWebTest.INTERNAL_KEY
 })
 @Import({SecurityConfig.class, JwtConfig.class, ProblemDetailsSecurityHandler.class, CorrelationIdFilter.class})
 class ApiSecurityWebTest {
@@ -68,6 +80,7 @@ class ApiSecurityWebTest {
     static final String SECRET = "test-secret-with-at-least-thirty-two-bytes!!";
     static final String ISSUER = "lavarapido-security-service";
     static final String AUDIENCE = "lavarapido-api";
+    static final String INTERNAL_KEY = "internal-test-key-with-enough-length";
 
     @Autowired
     private MockMvc mvc;
@@ -78,6 +91,7 @@ class ApiSecurityWebTest {
     @MockitoBean private RegisterUserUseCase registerUser;
     @MockitoBean private AuthenticateUserUseCase authenticateUser;
     @MockitoBean private LogoutUseCase logout;
+    @MockitoBean private SessionStatusUseCase sessionStatus;
     @MockitoBean private RequestPasswordResetUseCase requestPasswordReset;
     @MockitoBean private VerifyPasswordResetCodeUseCase verifyPasswordResetCode;
     @MockitoBean private ResetPasswordUseCase resetPassword;
@@ -86,12 +100,17 @@ class ApiSecurityWebTest {
     @MockitoBean private ChangePasswordUseCase changePassword;
     @MockitoBean private GetUserPreferencesUseCase getPreferences;
     @MockitoBean private UpdateUserPreferencesUseCase updatePreferences;
+    @MockitoBean private PersonAddressUseCase addresses;
     @MockitoBean private CreateUserAccountUseCase createAccount;
     @MockitoBean private ListUserAccountsUseCase listAccounts;
     @MockitoBean private ChangeAccountStatusUseCase changeStatus;
+    @MockitoBean private DeactivateOwnAccountUseCase deactivateOwnAccount;
+    @MockitoBean private ChangeEmailUseCase changeEmail;
+    @MockitoBean private ListRolePermissionsUseCase listRolePermissions;
+    @MockitoBean private UpdateRolePermissionsUseCase updateRolePermissions;
 
     private static final UserAccountView ANA = new UserAccountView(42L, "ana@gmail.com", "1023456789", "Ana",
-            "Pérez", "3001234567", Set.of(RoleCode.CLIENT), true, null);
+            "Pérez", "3001234567", Set.of(RoleCode.CLIENT), true, null, 7L, null);
 
     private String token(long userId, List<String> roles, String issuer, Instant expiresAt) {
         JwtClaimsSet claims = JwtClaimsSet.builder()
@@ -105,6 +124,12 @@ class ApiSecurityWebTest {
                 .build();
         return jwtEncoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
                 .getTokenValue();
+    }
+
+    /** Por defecto la sesión del token sigue abierta; las pruebas de sesión cerrada lo cambian. */
+    @BeforeEach
+    void openSessions() {
+        given(sessionStatus.isActive(anyLong(), anyLong())).willReturn(true);
     }
 
     private String validToken(List<String> roles) {
@@ -137,6 +162,17 @@ class ApiSecurityWebTest {
     }
 
     @Test
+    void aLockedAccountAnswers423WithAStableCode() throws Exception {
+        given(authenticateUser.login(any())).willThrow(
+                new com.lavarapido.security.domain.exception.AccountLockedException(java.time.Instant.now()));
+
+        mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ana@gmail.com\",\"password\":\"Wrong2026!\"}"))
+                .andExpect(status().isLocked())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
+    }
+
+    @Test
     void invalidRegistrationFieldsAreListed() throws Exception {
         mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"documentNumber\":\"1023456789\",\"firstName\":\"Ana\",\"lastName\":\"Pérez\","
@@ -162,6 +198,46 @@ class ApiSecurityWebTest {
         mvc.perform(post("/api/v1/auth/password/forgot").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"nadie@gmail.com\"}"))
                 .andExpect(status().isAccepted());
+    }
+
+    @Test
+    void theSessionCheckAnswers204WhileTheSessionIsOpen() throws Exception {
+        mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + validToken(List.of("CLIENT"))))
+                .andExpect(status().isNoContent());
+        verify(sessionStatus).isActive(42L, 1L);
+    }
+
+    @Test
+    void theSessionCheckRequiresAToken() throws Exception {
+        mvc.perform(get("/api/v1/auth/session"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void aTokenOfAClosedSessionNoLongerWorks() throws Exception {
+        // logout, cuenta inhabilitada o desactivada: el token sigue firmado y vigente pero ya no sirve
+        given(sessionStatus.isActive(42L, 1L)).willReturn(false);
+        String token = validToken(List.of("CLIENT"));
+
+        mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/users/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void aTokenWithoutSessionIsNotTiedToOne() throws Exception {
+        // lo firman herramientas con el secreto (pruebas e2e); el login siempre pone el sid
+        JwtClaimsSet claims = JwtClaimsSet.builder().issuer(ISSUER).audience(List.of(AUDIENCE)).subject("42")
+                .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(600)).claim("roles", List.of("CLIENT"))
+                .build();
+        String token = jwtEncoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
+                .getTokenValue();
+        given(sessionStatus.isActive(anyLong(), anyLong())).willReturn(false);
+
+        mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
     }
 
     @Test
@@ -237,5 +313,87 @@ class ApiSecurityWebTest {
         mvc.perform(post("/api/v1/auth/password/forgot").header("X-Correlation-Id", "bad\nid")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"email\":\"ana@gmail.com\"}"))
                 .andExpect(header().string("X-Correlation-Id", org.hamcrest.Matchers.not("bad\nid")));
+    }
+
+    @Test
+    void closingTheOwnAccountNeedsAToken() throws Exception {
+        mvc.perform(post("/api/v1/users/me/deactivate").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"Lavado2026!\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void closingTheOwnAccountUsesTheUserFromTheToken() throws Exception {
+        mvc.perform(post("/api/v1/users/me/deactivate").header("Authorization", "Bearer " + validToken(List.of("CLIENT")))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"currentPassword\":\"Lavado2026!\"}"))
+                .andExpect(status().isNoContent());
+        verify(deactivateOwnAccount).deactivateOwnAccount(any());
+    }
+
+    // ---------- /internal/** (entre servicios, con la llave interna) ----------
+
+    @Test
+    void internalContactWithTheKeyReturnsOnlyContactData() throws Exception {
+        given(getProfile.getProfile(42L)).willReturn(ANA);
+        given(getPreferences.getPreferences(42L)).willReturn(new PreferenceView("green-light", "en", true, false, true));
+
+        mvc.perform(get("/internal/v1/users/42/contact").header("X-Internal-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("ana@gmail.com"))
+                .andExpect(jsonPath("$.firstName").value("Ana"))
+                .andExpect(jsonPath("$.active").value(true))
+                // canales que eligió en Configuración > Notificaciones
+                .andExpect(jsonPath("$.pushEnabled").value(true))
+                .andExpect(jsonPath("$.emailRemindersEnabled").value(false))
+                .andExpect(jsonPath("$.promotionsEnabled").value(true))
+                // idioma de la cuenta: notification-service escribe los avisos en ese idioma
+                .andExpect(jsonPath("$.language").value("en"))
+                .andExpect(jsonPath("$.documentNumber").doesNotExist())
+                .andExpect(jsonPath("$.phone").doesNotExist());
+    }
+
+    @Test
+    void internalContactWithoutOrWithAWrongKeyIsUnauthorized() throws Exception {
+        mvc.perform(get("/internal/v1/users/42/contact"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/internal/v1/users/42/contact").header("X-Internal-Key", "wrong-key"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void internalContactDoesNotAcceptAUserToken() throws Exception {
+        mvc.perform(get("/internal/v1/users/42/contact")
+                        .header("Authorization", "Bearer " + validToken(List.of("ADMIN"))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void internalContactOfAnUnknownUserIsNotFound() throws Exception {
+        given(getProfile.getProfile(99L)).willThrow(new UserNotFoundException());
+
+        mvc.perform(get("/internal/v1/users/99/contact").header("X-Internal-Key", INTERNAL_KEY))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void internalAdminsReturnsOnlyTheActiveAdminIds() throws Exception {
+        UserAccountView activeAdmin = new UserAccountView(1L, "admin@gmail.com", "1000000001", "Admin", "Demo",
+                null, Set.of(RoleCode.ADMIN), true, null, 1L, null);
+        UserAccountView disabledAdmin = new UserAccountView(2L, "old@gmail.com", "1000000002", "Old", "Admin",
+                null, Set.of(RoleCode.ADMIN), false, null, 1L, null);
+        given(listAccounts.listAccounts(any()))
+                .willReturn(new PageResult<>(List.of(activeAdmin, disabledAdmin), 0, 100, 2));
+
+        mvc.perform(get("/internal/v1/users/admins").header("X-Internal-Key", INTERNAL_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0]").value(1));
+        verify(listAccounts).listAccounts(new ListUserAccountsQuery(RoleCode.ADMIN, 0, 100));
+    }
+
+    @Test
+    void internalAdminsWithoutTheKeyIsUnauthorized() throws Exception {
+        mvc.perform(get("/internal/v1/users/admins"))
+                .andExpect(status().isUnauthorized());
     }
 }

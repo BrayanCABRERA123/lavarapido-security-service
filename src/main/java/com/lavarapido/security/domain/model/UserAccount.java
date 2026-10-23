@@ -15,7 +15,7 @@ import java.util.Set;
  * <p>Invariantes:
  * <ul>
  *   <li>Una cuenta por persona (lo valida el caso de uso, respaldado por {@code uq_app_user_person}).</li>
- *   <li>El usuario es el correo y nunca cambia.</li>
+ *   <li>El usuario es el correo. Solo cambia con {@link #changeEmail}, que actualiza también el de la persona.</li>
  *   <li>Una cuenta siempre tiene al menos un rol.</li>
  *   <li>Una cuenta desactivada no puede autenticarse.</li>
  * </ul>
@@ -27,23 +27,26 @@ public final class UserAccount {
 
     private final Long id;
     private final Person person;
-    private final EmailAddress username;
+    private EmailAddress username;
     private HashedPassword passwordHash;
     private boolean active;
     private Instant lastLogin;
+    // fecha de registro; null mientras la cuenta no se ha guardado
+    private final Instant createdAt;
     private final Set<RoleCode> roles;
+    // aceptación de los Términos y de la Política de Tratamiento de Datos (null: no consta)
+    private Instant termsAcceptedAt;
+    private Instant dataPolicyAcceptedAt;
 
     private UserAccount(Long id, Person person, EmailAddress username, HashedPassword passwordHash,
-                        boolean active, Instant lastLogin, Set<RoleCode> roles) {
+                        boolean active, Instant lastLogin, Instant createdAt, Set<RoleCode> roles) {
         this.id = id;
         this.person = Objects.requireNonNull(person, "person");
-        this.username = Objects.requireNonNull(username, "username");
-        if (username.value().length() > MAX_USERNAME_LENGTH) {
-            throw new InvalidValueException("INVALID_EMAIL", "Email is too long to be used as a login");
-        }
+        this.username = requireLoginEmail(username);
         this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash");
         this.active = active;
         this.lastLogin = lastLogin;
+        this.createdAt = createdAt;
         if (roles == null || roles.isEmpty()) {
             throw new IllegalArgumentException("An account must hold at least one role");
         }
@@ -57,12 +60,42 @@ public final class UserAccount {
 
     /** Cuenta creada por un administrador (ej. un operario), con roles explícitos. */
     public static UserAccount create(Person person, EmailAddress email, HashedPassword passwordHash, Set<RoleCode> roles) {
-        return new UserAccount(null, person, email, passwordHash, true, null, roles);
+        return new UserAccount(null, person, email, passwordHash, true, null, null, roles);
     }
 
     public static UserAccount reconstitute(Long id, Person person, EmailAddress username, HashedPassword passwordHash,
                                            boolean active, Instant lastLogin, Set<RoleCode> roles) {
-        return new UserAccount(Objects.requireNonNull(id, "id"), person, username, passwordHash, active, lastLogin, roles);
+        return reconstitute(id, person, username, passwordHash, active, lastLogin, null, roles);
+    }
+
+    public static UserAccount reconstitute(Long id, Person person, EmailAddress username, HashedPassword passwordHash,
+                                           boolean active, Instant lastLogin, Instant createdAt, Set<RoleCode> roles) {
+        return new UserAccount(Objects.requireNonNull(id, "id"), person, username, passwordHash, active, lastLogin,
+                createdAt, roles);
+    }
+
+    /**
+     * La persona aceptó los Términos y la Política de Tratamiento de Datos al registrarse. Se guarda
+     * la primera aceptación: volver a llamarlo no cambia la fecha.
+     */
+    public void acceptLegalDocuments(Instant at) {
+        Objects.requireNonNull(at, "at");
+        if (termsAcceptedAt == null) termsAcceptedAt = at;
+        if (dataPolicyAcceptedAt == null) dataPolicyAcceptedAt = at;
+    }
+
+    /** Solo para reconstruir la cuenta desde la base. */
+    public void restoreLegalConsent(Instant termsAcceptedAt, Instant dataPolicyAcceptedAt) {
+        this.termsAcceptedAt = termsAcceptedAt;
+        this.dataPolicyAcceptedAt = dataPolicyAcceptedAt;
+    }
+
+    public Instant termsAcceptedAt() {
+        return termsAcceptedAt;
+    }
+
+    public Instant dataPolicyAcceptedAt() {
+        return dataPolicyAcceptedAt;
     }
 
     public void ensureCanAuthenticate() {
@@ -74,6 +107,23 @@ public final class UserAccount {
     public void recordSuccessfulLogin(Instant at) {
         ensureCanAuthenticate();
         this.lastLogin = Objects.requireNonNull(at, "at");
+    }
+
+    /**
+     * Cambia el correo con el que se inicia sesión. El caso de uso verifica antes la contraseña
+     * y que el correo no esté tomado por otra cuenta.
+     */
+    public void changeEmail(EmailAddress newEmail) {
+        this.username = requireLoginEmail(newEmail);
+        person.changeEmail(newEmail);
+    }
+
+    private static EmailAddress requireLoginEmail(EmailAddress email) {
+        Objects.requireNonNull(email, "username");
+        if (email.value().length() > MAX_USERNAME_LENGTH) {
+            throw new InvalidValueException("INVALID_EMAIL", "Email is too long to be used as a login");
+        }
+        return email;
     }
 
     public void changePassword(HashedPassword newHash) {
@@ -114,6 +164,10 @@ public final class UserAccount {
 
     public Instant lastLogin() {
         return lastLogin;
+    }
+
+    public Instant createdAt() {
+        return createdAt;
     }
 
     public Set<RoleCode> roles() {

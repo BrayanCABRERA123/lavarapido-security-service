@@ -1,5 +1,6 @@
 package com.lavarapido.security.infrastructure.config;
 
+import com.lavarapido.security.domain.port.in.SessionStatusUseCase;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,7 +23,8 @@ import java.util.List;
 
 /**
  * Firma y verificación HS256 con un secreto compartido. El decoder rechaza el token salvo que la
- * firma, el algoritmo, la vigencia (60 s de tolerancia), el emisor y la audiencia sean correctos.
+ * firma, el algoritmo, la vigencia (60 s de tolerancia), el emisor y la audiencia sean correctos, y
+ * que su sesión siga abierta.
  */
 @Configuration
 class JwtConfig {
@@ -38,15 +40,17 @@ class JwtConfig {
     }
 
     @Bean
-    JwtDecoder jwtDecoder(SecretKey jwtSigningKey, JwtProperties properties) {
+    JwtDecoder jwtDecoder(SecretKey jwtSigningKey, JwtProperties properties, SessionStatusUseCase sessions) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtSigningKey)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
 
         OAuth2TokenValidator<Jwt> audience = new JwtClaimValidator<List<String>>(JwtClaimNames.AUD,
                 aud -> aud != null && aud.contains(properties.audience()));
+        // la sesión se consulta al final: un token vencido o ajeno se rechaza sin ir a la base
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(properties.issuer()), audience));
+                JwtValidators.createDefaultWithIssuer(properties.issuer()), audience,
+                new ActiveSessionValidator(sessions)));
         return decoder;
     }
 }

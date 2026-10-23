@@ -52,6 +52,26 @@ class AccountRegistrationServiceTest {
     }
 
     @Test
+    void storesWhenTheLegalDocumentsWereAccepted() {
+        UserAccountView view = service.register(new RegisterUserCommand("1023456789", "Ana", "Pérez",
+                "ana@gmail.com", null, "Lavado2026!", true, true));
+
+        UserAccount stored = accounts.findById(view.id()).orElseThrow();
+        assertThat(stored.termsAcceptedAt()).isEqualTo(Instant.parse("2026-09-29T15:00:00Z"));
+        assertThat(stored.dataPolicyAcceptedAt()).isEqualTo(Instant.parse("2026-09-29T15:00:00Z"));
+    }
+
+    @Test
+    void noConsentIsRecordedWhenTheBoxesAreNotSent() {
+        UserAccountView withoutBoxes = service.register(ana());
+        UserAccountView onlyTerms = service.register(new RegisterUserCommand("80000002", "Luis", "Gómez",
+                "luis@gmail.com", null, "Lavado2026!", true, false));
+
+        assertThat(accounts.findById(withoutBoxes.id()).orElseThrow().termsAcceptedAt()).isNull();
+        assertThat(accounts.findById(onlyTerms.id()).orElseThrow().dataPolicyAcceptedAt()).isNull();
+    }
+
+    @Test
     void theSameEmailCannotOpenTwoAccounts() {
         service.register(ana());
 
@@ -103,6 +123,20 @@ class AccountRegistrationServiceTest {
                 "luis@gmail.com", "3009998877", "Operario2026!", Set.of(RoleCode.OPERATOR)));
 
         assertThat(view.roles()).containsExactly(RoleCode.OPERATOR);
+    }
+
+    @Test
+    void theEventSaysWhetherTheAccountWasOpenedByAnAdministrator() {
+        service.register(ana());
+        service.createAccount(new CreateUserAccountCommand("80000001", "Luis", "Gómez",
+                "luis@gmail.com", "3009998877", "Operario2026!", Set.of(RoleCode.OPERATOR)));
+
+        // la bienvenida cambia: quien se registra solo eligió su contraseña, el creado por el admin no
+        assertThat(events.events).hasSize(2);
+        assertThat(((UserRegistered) events.events.get(0)).createdByAdmin()).isFalse();
+        UserRegistered byAdmin = (UserRegistered) events.events.get(1);
+        assertThat(byAdmin.createdByAdmin()).isTrue();
+        assertThat(byAdmin.roles()).containsExactly(RoleCode.OPERATOR);
     }
 
     @Test

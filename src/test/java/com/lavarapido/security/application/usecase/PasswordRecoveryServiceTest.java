@@ -1,5 +1,7 @@
 package com.lavarapido.security.application.usecase;
 
+import com.lavarapido.security.application.fake.Fakes;
+
 import com.lavarapido.security.application.fake.Fakes.FixedResetCodeGenerator;
 import com.lavarapido.security.application.fake.Fakes.InMemoryResetAttemptCounter;
 import com.lavarapido.security.application.fake.Fakes.MutableClock;
@@ -10,6 +12,7 @@ import com.lavarapido.security.application.fake.InMemoryPasswordResetTokenReposi
 import com.lavarapido.security.application.fake.InMemoryUserAccountRepository;
 import com.lavarapido.security.domain.event.PasswordChanged;
 import com.lavarapido.security.domain.exception.InvalidResetCodeException;
+import com.lavarapido.security.domain.exception.SamePasswordException;
 import com.lavarapido.security.domain.exception.WeakPasswordException;
 import com.lavarapido.security.domain.model.PasswordResetToken;
 import com.lavarapido.security.domain.model.UserAccount;
@@ -41,9 +44,11 @@ class PasswordRecoveryServiceTest {
     private final MutableClock clock = new MutableClock(Instant.parse("2026-09-29T15:00:00Z"));
     private final PlainPasswordHasher hasher = new PlainPasswordHasher();
 
+    private final Fakes.InMemoryLoginLockoutRepository lockouts = new Fakes.InMemoryLoginLockoutRepository();
+    private final Fakes.InMemoryUserSessionRepository sessions = new Fakes.InMemoryUserSessionRepository();
     private final PasswordRecoveryService service = new PasswordRecoveryService(accounts, tokens, hasher,
             new PasswordPolicy(), new PasswordRecoveryPolicy(Duration.ofMinutes(15), 3), codes, notifier,
-            new InMemoryResetAttemptCounter(), events, clock);
+            new InMemoryResetAttemptCounter(), events, lockouts, sessions, clock);
 
     private long anaId;
 
@@ -142,6 +147,17 @@ class PasswordRecoveryServiceTest {
     }
 
     @Test
+    void theCurrentPasswordCannotBeReusedAndDoesNotConsumeTheCode() {
+        service.requestReset(new RequestPasswordResetCommand(EMAIL, null));
+
+        assertThatThrownBy(() -> service.resetPassword(new ResetPasswordCommand(EMAIL, "123456", "Lavado2026!")))
+                .isInstanceOf(SamePasswordException.class);
+        assertThat(events.events).isEmpty();
+        assertThatCode(() -> service.resetPassword(new ResetPasswordCommand(EMAIL, "123456", "Nueva2026!")))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     void aDisabledAccountCannotRecoverItsPassword() {
         UserAccount ana = accounts.findById(anaId).orElseThrow();
         ana.deactivate();
@@ -150,5 +166,29 @@ class PasswordRecoveryServiceTest {
         service.requestReset(new RequestPasswordResetCommand(EMAIL, null));
 
         assertThat(notifier.sent).isZero();
+    }
+
+    @Test
+    void resettingThePasswordLiftsALoginLockout() {
+        lockouts.save(new com.lavarapido.security.domain.model.LoginLockout(anaId, 0, null,
+                clock.instant().plus(java.time.Duration.ofMinutes(15))));
+        service.requestReset(new RequestPasswordResetCommand(EMAIL, "10.0.0.1"));
+        String code = notifier.lastCodeByEmail.get(EMAIL);
+        service.resetPassword(new ResetPasswordCommand(EMAIL, code, "Nueva2026!"));
+
+        assertThat(lockouts.rows).isEmpty();
+    }
+
+    @Test
+    void resettingThePasswordClosesEveryOpenSession() {
+        Instant now = clock.instant();
+        sessions.open(anaId, now, now.plus(Duration.ofHours(8)), "10.0.0.1", "web");
+        sessions.open(anaId, now, now.plus(Duration.ofHours(8)), "10.0.0.2", "app");
+        service.requestReset(new RequestPasswordResetCommand(EMAIL, "10.0.0.1"));
+        String code = notifier.lastCodeByEmail.get(EMAIL);
+
+        service.resetPassword(new ResetPasswordCommand(EMAIL, code, "Nueva2026!"));
+
+        assertThat(sessions.openSessionsOf(anaId)).isZero();
     }
 }

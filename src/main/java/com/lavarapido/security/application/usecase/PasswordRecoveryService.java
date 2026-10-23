@@ -3,6 +3,7 @@ package com.lavarapido.security.application.usecase;
 import com.lavarapido.security.domain.event.PasswordChanged;
 import com.lavarapido.security.domain.exception.InvalidResetCodeException;
 import com.lavarapido.security.domain.exception.InvalidValueException;
+import com.lavarapido.security.domain.exception.SamePasswordException;
 import com.lavarapido.security.domain.model.EmailAddress;
 import com.lavarapido.security.domain.model.PasswordResetToken;
 import com.lavarapido.security.domain.model.UserAccount;
@@ -10,12 +11,14 @@ import com.lavarapido.security.domain.port.in.RequestPasswordResetUseCase;
 import com.lavarapido.security.domain.port.in.ResetPasswordUseCase;
 import com.lavarapido.security.domain.port.in.VerifyPasswordResetCodeUseCase;
 import com.lavarapido.security.domain.port.out.DomainEventPublisher;
+import com.lavarapido.security.domain.port.out.LoginLockoutRepository;
 import com.lavarapido.security.domain.port.out.PasswordHasher;
 import com.lavarapido.security.domain.port.out.PasswordResetTokenRepository;
 import com.lavarapido.security.domain.port.out.ResetAttemptCounter;
 import com.lavarapido.security.domain.port.out.ResetCodeGenerator;
 import com.lavarapido.security.domain.port.out.ResetCodeNotifier;
 import com.lavarapido.security.domain.port.out.UserAccountRepository;
+import com.lavarapido.security.domain.port.out.UserSessionRepository;
 import com.lavarapido.security.domain.service.PasswordPolicy;
 import com.lavarapido.security.domain.service.PasswordRecoveryPolicy;
 import org.springframework.stereotype.Service;
@@ -49,13 +52,18 @@ public class PasswordRecoveryService
     private final ResetCodeNotifier codeNotifier;
     private final ResetAttemptCounter attemptCounter;
     private final DomainEventPublisher events;
+    private final LoginLockoutRepository lockouts;
+    private final UserSessionRepository sessions;
     private final Clock clock;
 
     public PasswordRecoveryService(UserAccountRepository accounts, PasswordResetTokenRepository resetTokens,
                                    PasswordHasher passwordHasher, PasswordPolicy passwordPolicy,
                                    PasswordRecoveryPolicy recoveryPolicy, ResetCodeGenerator codeGenerator,
                                    ResetCodeNotifier codeNotifier, ResetAttemptCounter attemptCounter,
-                                   DomainEventPublisher events, Clock clock) {
+                                   DomainEventPublisher events, LoginLockoutRepository lockouts,
+                                   UserSessionRepository sessions, Clock clock) {
+        this.lockouts = lockouts;
+        this.sessions = sessions;
         this.accounts = accounts;
         this.resetTokens = resetTokens;
         this.passwordHasher = passwordHasher;
@@ -102,6 +110,11 @@ public class PasswordRecoveryService
         UserAccount account = findActiveAccount(command.email()).orElseThrow(InvalidResetCodeException::new);
         PasswordResetToken token = checkCode(account, command.code(), now);
         passwordPolicy.validate(command.newPassword());
+        // quien recupera la contraseña debe elegir una nueva; se revisa antes de gastar el código
+        // para que pueda intentarlo otra vez con una distinta
+        if (passwordHasher.matches(command.newPassword(), account.passwordHash())) {
+            throw new SamePasswordException();
+        }
 
         token.redeem(now);
         resetTokens.save(token);
@@ -109,6 +122,10 @@ public class PasswordRecoveryService
 
         account.changePassword(passwordHasher.hash(command.newPassword()));
         accounts.save(account);
+        // con la contraseña nueva la cuenta vuelve a entrar aunque estuviera bloqueada (RF-004b)
+        lockouts.clear(account.id());
+        // quien recupera no tiene sesión: se cierran todas, incluida la de quien conocía la clave vieja
+        sessions.revokeAll(account.id(), now);
         events.publish(new PasswordChanged(account.id(), PasswordChanged.Reason.RECOVERED, now));
     }
 

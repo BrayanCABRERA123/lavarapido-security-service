@@ -3,9 +3,11 @@ package com.lavarapido.security.application.fake;
 import com.lavarapido.security.domain.event.DomainEvent;
 import com.lavarapido.security.domain.model.EmailAddress;
 import com.lavarapido.security.domain.model.HashedPassword;
+import com.lavarapido.security.domain.model.LoginLockout;
 import com.lavarapido.security.domain.model.PersonName;
 import com.lavarapido.security.domain.model.UserAccount;
 import com.lavarapido.security.domain.port.out.DomainEventPublisher;
+import com.lavarapido.security.domain.port.out.LoginLockoutRepository;
 import com.lavarapido.security.domain.port.out.PasswordHasher;
 import com.lavarapido.security.domain.port.out.ResetAttemptCounter;
 import com.lavarapido.security.domain.port.out.ResetCodeGenerator;
@@ -20,9 +22,12 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /** Dobles de prueba escritos a mano para los puertos de salida. */
 public final class Fakes {
@@ -142,6 +147,30 @@ public final class Fakes {
                         session.ipAddress(), revokedAt));
             }
         }
+
+        @Override
+        public void revokeAll(long userId, Instant revokedAt) {
+            sessions.keySet().forEach(sessionId -> revoke(sessionId, userId, revokedAt));
+        }
+
+        @Override
+        public void revokeAllExcept(long userId, long keptSessionId, Instant revokedAt) {
+            sessions.keySet().stream().filter(sessionId -> sessionId != keptSessionId)
+                    .forEach(sessionId -> revoke(sessionId, userId, revokedAt));
+        }
+
+        @Override
+        public boolean isActive(long sessionId, long userId, Instant now) {
+            Session session = sessions.get(sessionId);
+            return session != null && session.userId() == userId && session.revokedAt() == null
+                    && session.expiresAt().isAfter(now);
+        }
+
+        public long openSessionsOf(long userId) {
+            return sessions.values().stream()
+                    .filter(session -> session.userId() == userId && session.revokedAt() == null)
+                    .count();
+        }
     }
 
     public static class FakeTokenIssuer implements TokenIssuer {
@@ -155,6 +184,38 @@ public final class Fakes {
         public IssuedToken issue(UserAccount account, long sessionId, Instant issuedAt) {
             return new IssuedToken("token-for-" + account.id() + "-session-" + sessionId,
                     issuedAt.plus(timeToLive()));
+        }
+    }
+
+    /** Bloqueos de inicio de sesión en memoria (security.login_lockout). */
+    public static class InMemoryLoginLockoutRepository implements LoginLockoutRepository {
+
+        public final Map<Long, LoginLockout> rows = new HashMap<>();
+        /** cuentas bloqueadas en la transacción actual; leer sin bloquear se anota en unlockedReads */
+        public final Set<Long> locked = new HashSet<>();
+        public int unlockedReads;
+
+        @Override
+        public void lock(long userId) {
+            locked.add(userId);
+        }
+
+        @Override
+        public Optional<LoginLockout> findByUserId(long userId) {
+            if (!locked.contains(userId)) {
+                unlockedReads++;
+            }
+            return Optional.ofNullable(rows.get(userId));
+        }
+
+        @Override
+        public void save(LoginLockout lockout) {
+            rows.put(lockout.userId(), lockout);
+        }
+
+        @Override
+        public void clear(long userId) {
+            rows.remove(userId);
         }
     }
 }

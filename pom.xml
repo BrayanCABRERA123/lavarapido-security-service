@@ -16,6 +16,8 @@
 
 	<properties>
 		<java.version>21</java.version>
+		<!-- springdoc 3.0.x es la línea compatible con Spring Boot 4.0.x -->
+		<springdoc.version>3.0.3</springdoc.version>
 	</properties>
 
 	<dependencies>
@@ -52,6 +54,25 @@
 			<groupId>com.microsoft.sqlserver</groupId>
 			<artifactId>mssql-jdbc</artifactId>
 			<scope>runtime</scope>
+		</dependency>
+
+		<!-- Envío de correos (código de recuperación de contraseña) por SMTP -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+
+		<!-- Mensajería: publica los eventos de dominio en RabbitMQ (ADR-004) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-amqp</artifactId>
+		</dependency>
+
+		<!-- Documentación de la API: OpenAPI + Swagger UI -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>${springdoc.version}</version>
 		</dependency>
 
 		<!-- Observability -->

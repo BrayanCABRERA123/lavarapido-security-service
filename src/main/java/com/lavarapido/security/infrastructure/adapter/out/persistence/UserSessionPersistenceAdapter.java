@@ -34,6 +34,24 @@ class UserSessionPersistenceAdapter implements UserSessionRepository {
                 .ifPresent(session -> session.setRevokedAt(revokedAt));
     }
 
+    @Override
+    public void revokeAll(long userId, Instant revokedAt) {
+        sessions.findByUserIdAndRevokedAtIsNull(userId)
+                .forEach(session -> session.setRevokedAt(revokedAt));
+    }
+
+    @Override
+    public void revokeAllExcept(long userId, long keptSessionId, Instant revokedAt) {
+        sessions.findByUserIdAndRevokedAtIsNull(userId).stream()
+                .filter(session -> session.getId() != keptSessionId)
+                .forEach(session -> session.setRevokedAt(revokedAt));
+    }
+
+    @Override
+    public boolean isActive(long sessionId, long userId, Instant now) {
+        return sessions.existsByIdAndUserIdAndRevokedAtIsNullAndExpiresAtAfter(sessionId, userId, now);
+    }
+
     private static String truncate(String value, int maxLength) {
         return value == null || value.length() <= maxLength ? value : value.substring(0, maxLength);
     }

@@ -20,12 +20,14 @@ import com.lavarapido.security.infrastructure.adapter.in.web.dto.ResetPasswordRe
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.UserResponse;
 import com.lavarapido.security.infrastructure.adapter.in.web.dto.VerifyResetCodeRequest;
 import jakarta.servlet.http.HttpServletRequest;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,6 +38,7 @@ import java.time.Duration;
 import java.time.Instant;
 
 /** Endpoints públicos de identidad: registro, login, logout y recuperación de contraseña. */
+@Tag(name = "Auth", description = "Registro, login, logout y recuperación de contraseña")
 @RestController
 @RequestMapping("/api/v1/auth")
 class AuthController {
@@ -62,7 +65,8 @@ class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     UserResponse register(@Valid @RequestBody RegisterRequest request) {
         return UserResponse.from(registerUser.register(new RegisterUserCommand(request.documentNumber(),
-                request.firstName(), request.lastName(), request.email(), request.phone(), request.password())));
+                request.firstName(), request.lastName(), request.email(), request.phone(), request.password(),
+                Boolean.TRUE.equals(request.acceptsTerms()), Boolean.TRUE.equals(request.acceptsDataPolicy()))));
     }
 
     @PostMapping("/login")
@@ -85,6 +89,16 @@ class AuthController {
     void logout(@AuthenticationPrincipal Jwt jwt) {
         AuthenticatedUser caller = AuthenticatedUser.from(jwt);
         logout.logout(caller.userId(), caller.sessionId());
+    }
+
+    /**
+     * 204 si el token es válido y su sesión sigue abierta; si no, 401 (lo resuelve el decoder). El
+     * gateway lo usa para cortar en todos los servicios los tokens de sesiones ya cerradas.
+     */
+    @GetMapping("/session")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void session() {
+        // sin cuerpo: llegar aquí ya significa que la sesión está abierta
     }
 
     /** Siempre 202, exista o no el correo: la respuesta no debe revelar cuentas. */

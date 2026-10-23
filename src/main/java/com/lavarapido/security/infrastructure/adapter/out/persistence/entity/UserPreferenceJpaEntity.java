@@ -34,6 +34,12 @@ public class UserPreferenceJpaEntity {
     @Column(name = "notifications_enabled", nullable = false)
     private boolean notificationsEnabled;
 
+    @Column(name = "email_reminders_enabled", nullable = false)
+    private boolean emailRemindersEnabled = true;
+
+    @Column(name = "promotions_enabled", nullable = false)
+    private boolean promotionsEnabled = true;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -88,6 +94,22 @@ public class UserPreferenceJpaEntity {
 
     public void setNotificationsEnabled(boolean notificationsEnabled) {
         this.notificationsEnabled = notificationsEnabled;
+    }
+
+    public boolean isEmailRemindersEnabled() {
+        return emailRemindersEnabled;
+    }
+
+    public void setEmailRemindersEnabled(boolean emailRemindersEnabled) {
+        this.emailRemindersEnabled = emailRemindersEnabled;
+    }
+
+    public boolean isPromotionsEnabled() {
+        return promotionsEnabled;
+    }
+
+    public void setPromotionsEnabled(boolean promotionsEnabled) {
+        this.promotionsEnabled = promotionsEnabled;
     }
 
     public void setUpdatedBy(Long updatedBy) {

@@ -75,9 +75,11 @@ class UserAccountPersistenceAdapter implements UserAccountRepository {
                         () -> new IllegalStateException("Account " + account.id() + " vanished while being updated"));
 
         copyPerson(account.person(), entity.getPerson());
+        entity.setUsername(account.username().value());
         entity.setPasswordHash(account.passwordHash().value());
         entity.setActive(account.isActive());
         entity.setLastLogin(account.lastLogin());
+        entity.setLegalConsent(account.termsAcceptedAt(), account.dataPolicyAcceptedAt());
         entity.replaceRoles(roleEntities(account.roles()));
 
         return toDomain(users.save(entity));
@@ -121,14 +123,17 @@ class UserAccountPersistenceAdapter implements UserAccountRepository {
         Set<RoleCode> roleCodes = entity.getRoles().stream()
                 .map(role -> RoleCode.valueOf(role.getCode()))
                 .collect(Collectors.toCollection(() -> EnumSet.noneOf(RoleCode.class)));
-        return UserAccount.reconstitute(
+        UserAccount account = UserAccount.reconstitute(
                 entity.getId(),
                 toDomain(entity.getPerson()),
                 EmailAddress.of(entity.getUsername()),
                 new HashedPassword(entity.getPasswordHash()),
                 entity.isActive(),
                 entity.getLastLogin(),
+                entity.getCreatedAt(),
                 roleCodes);
+        account.restoreLegalConsent(entity.getTermsAcceptedAt(), entity.getDataPolicyAcceptedAt());
+        return account;
     }
 
     private static Person toDomain(PersonJpaEntity entity) {

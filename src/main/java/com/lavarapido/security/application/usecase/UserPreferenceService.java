@@ -28,14 +28,17 @@ public class UserPreferenceService implements GetUserPreferencesUseCase, UpdateU
                 .orElseGet(() -> UserPreference.defaultsFor(userId)));
     }
 
+    /** Cambio parcial: lo que llegue null se queda como estaba (tema, idioma o cada canal). */
     @Override
     public PreferenceView updatePreferences(UpdatePreferencesCommand command) {
-        Theme theme = Theme.fromCode(command.theme());
-        Language language = Language.fromCode(command.language());
-
         UserPreference preference = preferences.findByUserId(command.userId())
                 .orElseGet(() -> UserPreference.defaultsFor(command.userId()));
-        preference.update(theme, language, command.notificationsEnabled());
+        Theme theme = command.theme() == null ? preference.theme() : Theme.fromCode(command.theme());
+        Language language = command.language() == null ? preference.language() : Language.fromCode(command.language());
+
+        preference.changeInterface(theme, language);
+        preference.changeNotificationChannels(command.notificationsEnabled(), command.emailRemindersEnabled(),
+                command.promotionsEnabled());
         return PreferenceView.from(preferences.save(preference));
     }
 }

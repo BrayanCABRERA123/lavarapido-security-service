@@ -1,12 +1,14 @@
 package com.lavarapido.security.application.usecase;
 
 import com.lavarapido.security.application.fake.Fakes.FakeTokenIssuer;
+import com.lavarapido.security.application.fake.Fakes.InMemoryLoginLockoutRepository;
 import com.lavarapido.security.application.fake.Fakes.InMemoryUserSessionRepository;
 import com.lavarapido.security.application.fake.Fakes.MutableClock;
 import com.lavarapido.security.application.fake.Fakes.PlainPasswordHasher;
 import com.lavarapido.security.application.fake.Fakes.RecordingEventPublisher;
 import com.lavarapido.security.application.fake.InMemoryUserAccountRepository;
 import com.lavarapido.security.domain.exception.AccountDisabledException;
+import com.lavarapido.security.domain.exception.AccountLockedException;
 import com.lavarapido.security.domain.exception.InvalidCredentialsException;
 import com.lavarapido.security.domain.model.UserAccount;
 import com.lavarapido.security.domain.port.in.AuthenticateUserUseCase.LoginCommand;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.time.Duration;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,8 +33,9 @@ class AuthenticationServiceTest {
     private final InMemoryUserAccountRepository accounts = new InMemoryUserAccountRepository();
     private final InMemoryUserSessionRepository sessions = new InMemoryUserSessionRepository();
     private final MutableClock clock = new MutableClock(NOW);
+    private final InMemoryLoginLockoutRepository lockouts = new InMemoryLoginLockoutRepository();
     private final AuthenticationService service = new AuthenticationService(accounts, sessions,
-            new PlainPasswordHasher(), new FakeTokenIssuer(), clock);
+            new PlainPasswordHasher(), new FakeTokenIssuer(), lockouts, clock);
 
     private long anaId;
 
@@ -87,5 +91,89 @@ class AuthenticationServiceTest {
 
         service.logout(anaId, 1L);
         assertThat(sessions.sessions.get(1L).revokedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void aSessionStaysActiveOnlyUntilItIsClosedOrExpires() {
+        service.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null));
+        assertThat(service.isActive(anaId, 1L)).isTrue();
+        // la sesión de otro usuario con el mismo id no cuenta
+        assertThat(service.isActive(anaId + 99, 1L)).isFalse();
+
+        clock.advance(Duration.ofMinutes(61));
+        assertThat(service.isActive(anaId, 1L)).isFalse();
+    }
+
+    @Test
+    void aSessionIsNoLongerActiveAfterLogout() {
+        service.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null));
+
+        service.logout(anaId, 1L);
+
+        assertThat(service.isActive(anaId, 1L)).isFalse();
+    }
+
+    private void failLogin() {
+        assertThatThrownBy(() -> service.login(new LoginCommand("ana@gmail.com", "WrongPass1!", null, null)))
+                .isInstanceOf(InvalidCredentialsException.class);
+    }
+
+    @Test
+    void fiveWrongPasswordsWithinFifteenMinutesLockTheAccountFifteenMinutes() {
+        for (int i = 0; i < 4; i++) {
+            failLogin();
+            clock.advance(Duration.ofMinutes(2));
+        }
+        // el quinto fallo ya responde que la cuenta quedó bloqueada
+        assertThatThrownBy(() -> service.login(new LoginCommand("ana@gmail.com", "WrongPass1!", null, null)))
+                .isInstanceOf(AccountLockedException.class);
+        // bloqueada, ni la contraseña correcta entra
+        clock.advance(Duration.ofMinutes(14));
+        assertThatThrownBy(() -> service.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null)))
+                .isInstanceOf(AccountLockedException.class);
+        assertThat(sessions.sessions).isEmpty();
+        // pasados los 15 minutos vuelve a entrar y el conteo se borra
+        clock.advance(Duration.ofMinutes(1));
+        assertThat(service.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null)).accessToken()).isNotBlank();
+        assertThat(lockouts.rows).isEmpty();
+    }
+
+    @Test
+    void failuresSpreadOverMoreThanFifteenMinutesDoNotLock() {
+        for (int i = 0; i < 6; i++) {
+            failLogin();
+            clock.advance(Duration.ofMinutes(4));
+        }
+        assertThat(service.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null)).accessToken()).isNotBlank();
+    }
+
+    @Test
+    void aSuccessfulLoginResetsTheFailures() {
+        for (int i = 0; i < 4; i++) {
+            failLogin();
+        }
+        service.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null));
+        for (int i = 0; i < 4; i++) {
+            failLogin();
+        }
+        assertThat(lockouts.rows.get(anaId).failedCount()).isEqualTo(4);
+    }
+
+    @Test
+    void theAttemptsAreLockedBeforeBeingReadSoConcurrentFailuresAreNotLost() {
+        failLogin();
+        service.login(new LoginCommand("ana@gmail.com", "Lavado2026!", null, null));
+
+        assertThat(lockouts.locked).containsExactly(anaId);
+        assertThat(lockouts.unlockedReads).isZero();
+    }
+
+    @Test
+    void unknownEmailsAreNeverLockedAndKeepTheGenericError() {
+        for (int i = 0; i < 6; i++) {
+            assertThatThrownBy(() -> service.login(new LoginCommand("nadie@gmail.com", "Lavado2026!", null, null)))
+                    .isInstanceOf(InvalidCredentialsException.class);
+        }
+        assertThat(lockouts.rows).isEmpty();
     }
 }
