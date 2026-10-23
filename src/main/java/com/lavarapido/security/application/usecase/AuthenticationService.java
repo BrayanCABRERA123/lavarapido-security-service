@@ -7,6 +7,7 @@ import com.lavarapido.security.domain.model.EmailAddress;
 import com.lavarapido.security.domain.model.HashedPassword;
 import com.lavarapido.security.domain.model.UserAccount;
 import com.lavarapido.security.domain.model.LoginLockout;
+import com.lavarapido.security.domain.model.RoleCode;
 import com.lavarapido.security.domain.port.in.AuthenticateUserUseCase;
 import com.lavarapido.security.domain.port.in.AuthenticationResult;
 import com.lavarapido.security.domain.port.in.LogoutUseCase;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 
 /** Inicio y cierre de sesión, y si la sesión de un token sigue abierta. */
 @Service
@@ -109,6 +111,23 @@ public class AuthenticationService implements AuthenticateUserUseCase, LogoutUse
     @Transactional(readOnly = true)
     public boolean isActive(long userId, long sessionId) {
         return sessions.isActive(sessionId, userId, clock.instant());
+    }
+
+    @Override
+    public boolean isActive(long userId, long sessionId, Set<RoleCode> tokenRoles) {
+        Instant now = clock.instant();
+        if (!sessions.isActive(sessionId, userId, now)) {
+            return false;
+        }
+        boolean stillGranted = accounts.findById(userId)
+                .map(account -> account.isActive() && account.stillHas(tokenRoles))
+                .orElse(false);
+        if (!stillGranted) {
+            // E-02: le quitaron un rol (o la cuenta) después de emitir el token: ninguna de sus
+            // sesiones sigue sirviendo y la persona entra de nuevo con los roles que tiene hoy
+            sessions.revokeAll(userId, now);
+        }
+        return stillGranted;
     }
 
     private Optional<UserAccount> findByEmail(String rawEmail) {

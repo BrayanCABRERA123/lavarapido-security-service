@@ -1,6 +1,9 @@
 package com.lavarapido.security.application.usecase;
 
 import com.lavarapido.security.domain.model.AllowedEmailDomains;
+import java.util.Set;
+import com.lavarapido.security.domain.port.in.CreateUserAccountUseCase.CreateUserAccountCommand;
+import com.lavarapido.security.domain.model.RoleCode;
 import com.lavarapido.security.application.fake.Fakes.FakeTokenIssuer;
 import com.lavarapido.security.application.fake.Fakes.InMemoryLoginLockoutRepository;
 import com.lavarapido.security.application.fake.Fakes.InMemoryUserSessionRepository;
@@ -103,6 +106,27 @@ class AuthenticationServiceTest {
 
         clock.advance(Duration.ofMinutes(61));
         assertThat(service.isActive(anaId, 1L)).isFalse();
+    }
+
+    @Test
+    void removingARoleInTheDatabaseClosesTheSessionsOfTokensThatStillCarryIt() {
+        // E-02: retirar a un administrador (se hace en security.user_role) ya no deja su token vivo
+        long bossId = new AccountRegistrationService(accounts, new PlainPasswordHasher(), new PasswordPolicy(),
+                new RecordingEventPublisher(), clock, AllowedEmailDomains.parse("gmail.com"))
+                .createAccount(new CreateUserAccountCommand("80000009", "Jefe", "Ruiz", "jefe@gmail.com", null,
+                        "Lavado2026!", Set.of(RoleCode.ADMIN)))
+                .id();
+        service.login(new LoginCommand("jefe@gmail.com", "Lavado2026!", null, null));
+        assertThat(service.isActive(bossId, 1L, Set.of(RoleCode.ADMIN))).isTrue();
+
+        UserAccount boss = accounts.findById(bossId).orElseThrow();
+        accounts.save(UserAccount.reconstitute(bossId, boss.person(), boss.username(), boss.passwordHash(), true,
+                boss.lastLogin(), Set.of(RoleCode.CLIENT)));
+
+        assertThat(service.isActive(bossId, 1L, Set.of(RoleCode.ADMIN))).isFalse();
+        // y se revocan todas sus sesiones: tampoco sirve otro token de esa persona
+        assertThat(sessions.openSessionsOf(bossId)).isZero();
+        assertThat(service.isActive(bossId, 1L, Set.of(RoleCode.CLIENT))).isFalse();
     }
 
     @Test

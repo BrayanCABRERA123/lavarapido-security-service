@@ -129,7 +129,7 @@ class ApiSecurityWebTest {
     /** Por defecto la sesión del token sigue abierta; las pruebas de sesión cerrada lo cambian. */
     @BeforeEach
     void openSessions() {
-        given(sessionStatus.isActive(anyLong(), anyLong())).willReturn(true);
+        given(sessionStatus.isActive(anyLong(), anyLong(), any())).willReturn(true);
     }
 
     private String validToken(List<String> roles) {
@@ -204,7 +204,17 @@ class ApiSecurityWebTest {
     void theSessionCheckAnswers204WhileTheSessionIsOpen() throws Exception {
         mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + validToken(List.of("CLIENT"))))
                 .andExpect(status().isNoContent());
-        verify(sessionStatus).isActive(42L, 1L);
+        // E-02: también viajan los roles del token, para compararlos con los actuales
+        verify(sessionStatus).isActive(42L, 1L, Set.of(RoleCode.CLIENT));
+    }
+
+    @Test
+    void aTokenWithARoleTheAccountNoLongerHasIsRejected() throws Exception {
+        // E-02: el token dice ADMIN pero ese rol ya se le quitó en la base
+        given(sessionStatus.isActive(42L, 1L, Set.of(RoleCode.ADMIN))).willReturn(false);
+
+        mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + validToken(List.of("ADMIN"))))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -216,7 +226,7 @@ class ApiSecurityWebTest {
     @Test
     void aTokenOfAClosedSessionNoLongerWorks() throws Exception {
         // logout, cuenta inhabilitada o desactivada: el token sigue firmado y vigente pero ya no sirve
-        given(sessionStatus.isActive(42L, 1L)).willReturn(false);
+        given(sessionStatus.isActive(42L, 1L, Set.of(RoleCode.CLIENT))).willReturn(false);
         String token = validToken(List.of("CLIENT"));
 
         mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + token))
@@ -234,7 +244,7 @@ class ApiSecurityWebTest {
                 .build();
         String token = jwtEncoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
                 .getTokenValue();
-        given(sessionStatus.isActive(anyLong(), anyLong())).willReturn(false);
+        given(sessionStatus.isActive(anyLong(), anyLong(), any())).willReturn(false);
 
         mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent());
