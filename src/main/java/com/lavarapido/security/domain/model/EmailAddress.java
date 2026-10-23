@@ -28,6 +28,23 @@ public record EmailAddress(String value) {
         return new EmailAddress(value);
     }
 
+    /** Lo que va después de la arroba. */
+    public String domain() {
+        return value.substring(value.indexOf('@') + 1);
+    }
+
+    /**
+     * El correo es de un dominio permitido (A-01). Se exige al abrir una cuenta y al cambiar el correo;
+     * no al leer cuentas ya guardadas ni al iniciar sesión, para no dejar por fuera cuentas antiguas.
+     */
+    public EmailAddress requireDomainIn(AllowedEmailDomains allowed) {
+        if (!allowed.allows(this)) {
+            throw new InvalidValueException("EMAIL_DOMAIN_NOT_ALLOWED",
+                    "Only these email domains are allowed: " + String.join(", ", allowed.domains()));
+        }
+        return this;
+    }
+
     @Override
     public String toString() {
         return value;

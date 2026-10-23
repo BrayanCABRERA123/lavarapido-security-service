@@ -1,5 +1,6 @@
 package com.lavarapido.security.application.usecase;
 
+import com.lavarapido.security.domain.model.AllowedEmailDomains;
 import com.lavarapido.security.application.fake.Fakes.FakeTokenIssuer;
 import com.lavarapido.security.application.fake.Fakes.InMemoryLoginLockoutRepository;
 import com.lavarapido.security.application.fake.Fakes.InMemoryUserSessionRepository;
@@ -42,7 +43,7 @@ class AuthenticationServiceTest {
     @BeforeEach
     void registerAna() {
         anaId = new AccountRegistrationService(accounts, new PlainPasswordHasher(), new PasswordPolicy(),
-                new RecordingEventPublisher(), clock)
+                new RecordingEventPublisher(), clock, AllowedEmailDomains.parse("gmail.com"))
                 .register(new RegisterUserCommand("1023456789", "Ana", "Pérez", "ana@gmail.com", null, "Lavado2026!"))
                 .id();
     }

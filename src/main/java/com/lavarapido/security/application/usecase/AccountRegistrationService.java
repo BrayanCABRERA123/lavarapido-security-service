@@ -4,6 +4,7 @@ import com.lavarapido.security.domain.event.UserRegistered;
 import com.lavarapido.security.domain.exception.DocumentAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.InvalidValueException;
+import com.lavarapido.security.domain.model.AllowedEmailDomains;
 import com.lavarapido.security.domain.model.DocumentNumber;
 import com.lavarapido.security.domain.model.EmailAddress;
 import com.lavarapido.security.domain.model.Person;
@@ -37,14 +38,17 @@ public class AccountRegistrationService implements RegisterUserUseCase, CreateUs
     private final PasswordPolicy passwordPolicy;
     private final DomainEventPublisher events;
     private final Clock clock;
+    private final AllowedEmailDomains allowedDomains;
 
     public AccountRegistrationService(UserAccountRepository accounts, PasswordHasher passwordHasher,
-                                      PasswordPolicy passwordPolicy, DomainEventPublisher events, Clock clock) {
+                                      PasswordPolicy passwordPolicy, DomainEventPublisher events, Clock clock,
+                                      AllowedEmailDomains allowedDomains) {
         this.accounts = accounts;
         this.passwordHasher = passwordHasher;
         this.passwordPolicy = passwordPolicy;
         this.events = events;
         this.clock = clock;
+        this.allowedDomains = allowedDomains;
     }
 
     @Override
@@ -74,7 +78,7 @@ public class AccountRegistrationService implements RegisterUserUseCase, CreateUs
                              boolean acceptedLegalDocuments) {
         DocumentNumber document = DocumentNumber.of(rawDocument);
         PersonName name = PersonName.of(firstName, lastName);
-        EmailAddress email = EmailAddress.of(rawEmail);
+        EmailAddress email = EmailAddress.of(rawEmail).requireDomainIn(allowedDomains);
         PhoneNumber phone = PhoneNumber.ofNullable(rawPhone);
         passwordPolicy.validate(rawPassword);
 

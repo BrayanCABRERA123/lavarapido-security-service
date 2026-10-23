@@ -4,6 +4,7 @@ import com.lavarapido.security.domain.event.EmailChanged;
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.IncorrectCurrentPasswordException;
 import com.lavarapido.security.domain.exception.UserNotFoundException;
+import com.lavarapido.security.domain.model.AllowedEmailDomains;
 import com.lavarapido.security.domain.model.EmailAddress;
 import com.lavarapido.security.domain.model.UserAccount;
 import com.lavarapido.security.domain.port.in.ChangeEmailUseCase;
@@ -25,19 +26,21 @@ public class EmailChangeService implements ChangeEmailUseCase {
     private final PasswordHasher passwordHasher;
     private final DomainEventPublisher events;
     private final Clock clock;
+    private final AllowedEmailDomains allowedDomains;
 
     public EmailChangeService(UserAccountRepository accounts, PasswordHasher passwordHasher,
-                              DomainEventPublisher events, Clock clock) {
+                              DomainEventPublisher events, Clock clock, AllowedEmailDomains allowedDomains) {
         this.accounts = accounts;
         this.passwordHasher = passwordHasher;
         this.events = events;
         this.clock = clock;
+        this.allowedDomains = allowedDomains;
     }
 
     @Override
     public UserAccountView changeEmail(ChangeEmailCommand command) {
         UserAccount account = accounts.findById(command.userId()).orElseThrow(UserNotFoundException::new);
-        EmailAddress newEmail = EmailAddress.of(command.newEmail());
+        EmailAddress newEmail = EmailAddress.of(command.newEmail()).requireDomainIn(allowedDomains);
 
         // la contraseña protege la cuenta si alguien encuentra la sesión abierta
         if (!passwordHasher.matches(command.currentPassword(), account.passwordHash())) {
