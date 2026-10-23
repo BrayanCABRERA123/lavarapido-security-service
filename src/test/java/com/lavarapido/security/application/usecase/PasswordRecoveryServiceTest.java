@@ -1,5 +1,6 @@
 package com.lavarapido.security.application.usecase;
 
+import com.lavarapido.security.domain.model.AllowedEmailDomains;
 import com.lavarapido.security.application.fake.Fakes;
 
 import com.lavarapido.security.application.fake.Fakes.FixedResetCodeGenerator;
@@ -55,7 +56,7 @@ class PasswordRecoveryServiceTest {
     @BeforeEach
     void registerAna() {
         anaId = new AccountRegistrationService(accounts, hasher, new PasswordPolicy(), new RecordingEventPublisher(),
-                clock)
+                clock, AllowedEmailDomains.parse("gmail.com"))
                 .register(new RegisterUserCommand("1023456789", "Ana", "Pérez", EMAIL, null, "Lavado2026!"))
                 .id();
     }

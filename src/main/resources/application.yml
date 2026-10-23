@@ -82,6 +82,9 @@ security:
     max-failed-attempts: 5
 
 app:
+  # A-01 (RF-001): dominios de correo permitidos al registrarse, al crear usuarios y al cambiar el
+  # correo, separados por comas
+  allowed-email-domains: ${ALLOWED_EMAIL_DOMAINS:gmail.com}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:8081}
   messaging:

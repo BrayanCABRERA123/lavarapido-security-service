@@ -52,6 +52,9 @@ must verify with the same secret, issuer and audience.
 - One account per person (`document_number`); the email is the login and never changes.
 - A walk-in customer (person without account) can later sign up: the account is linked to the
   existing person, counter data is kept, only missing contact info is filled.
+- Email domains (A-01, RF-001): registering, creating a user and changing the email only accept the
+  domains in `ALLOWED_EMAIL_DOMAINS` (comma separated, default `gmail.com`); otherwise 400
+  `EMAIL_DOMAIN_NOT_ALLOWED`. Login and stored accounts are not checked, so older accounts still work.
 - Password policy = frontend checklist: 8–72 chars, upper-case, digit, special character, no spaces.
 - Recovery codes: 6 digits, stored only as a BCrypt hash, 15 min, single use, a new request burns
   the previous code, 5 wrong guesses burn it.

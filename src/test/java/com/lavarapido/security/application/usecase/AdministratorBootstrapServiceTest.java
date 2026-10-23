@@ -1,5 +1,6 @@
 package com.lavarapido.security.application.usecase;
 
+import com.lavarapido.security.domain.model.AllowedEmailDomains;
 import com.lavarapido.security.application.fake.Fakes.MutableClock;
 import com.lavarapido.security.application.fake.Fakes.PlainPasswordHasher;
 import com.lavarapido.security.application.fake.Fakes.RecordingEventPublisher;
@@ -24,7 +25,7 @@ class AdministratorBootstrapServiceTest {
     private final RecordingEventPublisher events = new RecordingEventPublisher();
     private final AccountRegistrationService registration = new AccountRegistrationService(accounts,
             new PlainPasswordHasher(), new PasswordPolicy(), events,
-            new MutableClock(Instant.parse("2026-10-16T15:00:00Z")));
+            new MutableClock(Instant.parse("2026-10-16T15:00:00Z")), AllowedEmailDomains.parse("gmail.com"));
     private final AdministratorBootstrapService bootstrap = new AdministratorBootstrapService(accounts, registration);
 
     private static CreateUserAccountCommand admin(String email, String password, Set<RoleCode> roles) {

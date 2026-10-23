@@ -1,5 +1,6 @@
 package com.lavarapido.security.infrastructure.config;
 
+import com.lavarapido.security.domain.model.AllowedEmailDomains;
 import com.lavarapido.security.domain.service.PasswordPolicy;
 import com.lavarapido.security.domain.service.PasswordRecoveryPolicy;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +18,12 @@ class DomainConfig {
     @Bean
     Clock clock() {
         return Clock.systemUTC();
+    }
+
+    /** A-01: dominios de correo permitidos (ALLOWED_EMAIL_DOMAINS, por defecto gmail.com). */
+    @Bean
+    AllowedEmailDomains allowedEmailDomains(@Value("${app.allowed-email-domains:gmail.com}") String domains) {
+        return AllowedEmailDomains.parse(domains);
     }
 
     @Bean

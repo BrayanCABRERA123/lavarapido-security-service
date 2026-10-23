@@ -1,5 +1,6 @@
 package com.lavarapido.security.application.usecase;
 
+import com.lavarapido.security.domain.model.AllowedEmailDomains;
 import com.lavarapido.security.application.fake.Fakes.FakeTokenIssuer;
 import com.lavarapido.security.application.fake.Fakes.InMemoryUserSessionRepository;
 import com.lavarapido.security.application.fake.Fakes.MutableClock;
@@ -17,6 +18,7 @@ import com.lavarapido.security.domain.exception.IncorrectCurrentPasswordExceptio
 import com.lavarapido.security.domain.exception.SamePasswordException;
 import com.lavarapido.security.domain.exception.UserNotFoundException;
 import com.lavarapido.security.domain.model.PageResult;
+import com.lavarapido.security.domain.exception.InvalidValueException;
 import com.lavarapido.security.domain.model.RoleCode;
 import com.lavarapido.security.domain.port.in.AuthenticateUserUseCase.LoginCommand;
 import com.lavarapido.security.domain.port.in.ChangeEmailUseCase.ChangeEmailCommand;
@@ -49,7 +51,7 @@ class UserProfileAndAdministrationTest {
             new AuthenticationService(accounts, sessions, hasher, new FakeTokenIssuer(),
                     new com.lavarapido.security.application.fake.Fakes.InMemoryLoginLockoutRepository(), clock);
     private final AccountRegistrationService registration =
-            new AccountRegistrationService(accounts, hasher, new PasswordPolicy(), new RecordingEventPublisher(), clock);
+            new AccountRegistrationService(accounts, hasher, new PasswordPolicy(), new RecordingEventPublisher(), clock, AllowedEmailDomains.parse("gmail.com"));
 
     private long anaId;
 
@@ -220,12 +222,19 @@ class UserProfileAndAdministrationTest {
     @Nested
     class EmailChange {
 
-        private final EmailChangeService service = new EmailChangeService(accounts, hasher, events, clock);
+        private final EmailChangeService service = new EmailChangeService(accounts, hasher, events, clock, AllowedEmailDomains.parse("gmail.com"));
 
         @Test
         void requiresTheCurrentPassword() {
             assertThatThrownBy(() -> service.changeEmail(new ChangeEmailCommand(anaId, "ana.nueva@gmail.com", "Wrong2026!")))
                     .isInstanceOf(IncorrectCurrentPasswordException.class);
+        }
+
+        @Test
+        void theNewEmailMustBelongToAnAllowedDomain() {
+            // A-01
+            assertThatThrownBy(() -> service.changeEmail(new ChangeEmailCommand(anaId, "ana@hotmail.com", "Lavado2026!")))
+                    .isInstanceOf(InvalidValueException.class).extracting("code").isEqualTo("EMAIL_DOMAIN_NOT_ALLOWED");
         }
 
         @Test

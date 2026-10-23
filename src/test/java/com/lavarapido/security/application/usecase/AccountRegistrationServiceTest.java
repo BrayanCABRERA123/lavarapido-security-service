@@ -1,5 +1,6 @@
 package com.lavarapido.security.application.usecase;
 
+import com.lavarapido.security.domain.model.AllowedEmailDomains;
 import com.lavarapido.security.application.fake.Fakes.MutableClock;
 import com.lavarapido.security.application.fake.Fakes.PlainPasswordHasher;
 import com.lavarapido.security.application.fake.Fakes.RecordingEventPublisher;
@@ -34,7 +35,7 @@ class AccountRegistrationServiceTest {
     private final RecordingEventPublisher events = new RecordingEventPublisher();
     private final AccountRegistrationService service = new AccountRegistrationService(accounts,
             new PlainPasswordHasher(), new PasswordPolicy(), events,
-            new MutableClock(Instant.parse("2026-09-29T15:00:00Z")));
+            new MutableClock(Instant.parse("2026-09-29T15:00:00Z")), AllowedEmailDomains.parse("gmail.com"));
 
     private static RegisterUserCommand ana() {
         return new RegisterUserCommand("1023456789", "Ana", "Pérez", "Ana@Gmail.com", "3001234567", "Lavado2026!");
@@ -69,6 +70,21 @@ class AccountRegistrationServiceTest {
 
         assertThat(accounts.findById(withoutBoxes.id()).orElseThrow().termsAcceptedAt()).isNull();
         assertThat(accounts.findById(onlyTerms.id()).orElseThrow().dataPolicyAcceptedAt()).isNull();
+    }
+
+    @Test
+    void onlyAllowedEmailDomainsCanRegisterOrBeCreatedByTheAdmin() {
+        // A-01: el servidor valida el dominio (ALLOWED_EMAIL_DOMAINS, por defecto gmail.com)
+        RegisterUserCommand hotmail = new RegisterUserCommand("1023456789", "Ana", "Pérez", "ana@hotmail.com",
+                null, "Lavado2026!");
+        CreateUserAccountCommand outlook = new CreateUserAccountCommand("80000003", "Oscar", "Ruiz",
+                "oscar@outlook.com", null, "Lavado2026!", Set.of(RoleCode.OPERATOR));
+
+        assertThatThrownBy(() -> service.register(hotmail))
+                .isInstanceOf(InvalidValueException.class).extracting("code").isEqualTo("EMAIL_DOMAIN_NOT_ALLOWED");
+        assertThatThrownBy(() -> service.createAccount(outlook))
+                .isInstanceOf(InvalidValueException.class).extracting("code").isEqualTo("EMAIL_DOMAIN_NOT_ALLOWED");
+        assertThat(events.events).isEmpty();
     }
 
     @Test
