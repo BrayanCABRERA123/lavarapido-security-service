@@ -1,5 +1,6 @@
 package com.lavarapido.security.infrastructure.config;
 
+import com.lavarapido.security.domain.model.RoleCode;
 import com.lavarapido.security.domain.port.in.SessionStatusUseCase;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
@@ -7,9 +8,14 @@ import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
+
 /**
  * Rechaza el token si su sesión (claim {@code sid}) ya se cerró: logout, cuenta inhabilitada por el
- * admin o desactivada por el dueño. Sin esto el token seguía sirviendo hasta su exp (1 hora).
+ * admin o desactivada por el dueño. También si el token dice un rol que la cuenta ya no tiene (E-02:
+ * retirar a un administrador en security.user_role revoca sus sesiones). Sin esto el token seguía sirviendo hasta su exp (1 hora).
  * El gateway pregunta lo mismo a GET /api/v1/auth/session antes de pasar a los demás servicios.
  *
  * Todo token que entrega el login trae su sesión. Uno sin {@code sid} solo lo puede firmar quien
@@ -39,9 +45,28 @@ final class ActiveSessionValidator implements OAuth2TokenValidator<Jwt> {
         } catch (NumberFormatException | NullPointerException notAUser) {
             return OAuth2TokenValidatorResult.failure(SESSION_CLOSED);
         }
-        if (!(sessionId instanceof Number sid) || !sessions.isActive(userId, sid.longValue())) {
+        Set<RoleCode> roles = rolesOf(jwt);
+        if (!(sessionId instanceof Number sid) || roles == null
+                || !sessions.isActive(userId, sid.longValue(), roles)) {
             return OAuth2TokenValidatorResult.failure(SESSION_CLOSED);
         }
         return OAuth2TokenValidatorResult.success();
+    }
+
+    /** Los roles del token (claim roles); null si trae uno que no existe. */
+    private static Set<RoleCode> rolesOf(Jwt jwt) {
+        List<String> claim = jwt.getClaimAsStringList("roles");
+        if (claim == null) {
+            return Set.of();
+        }
+        Set<RoleCode> roles = EnumSet.noneOf(RoleCode.class);
+        for (String role : claim) {
+            try {
+                roles.add(RoleCode.valueOf(role));
+            } catch (IllegalArgumentException unknownRole) {
+                return null;
+            }
+        }
+        return roles;
     }
 }

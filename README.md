@@ -74,7 +74,9 @@ infrastructure/  adapter/in/web, adapter/out/{persistence,security,notification,
   otherwise they are printed to the log (dev profile only). Other system emails belong to the
   future `notification-service`.
 - The failed-guess counter is in memory: fine for one instance, needs Redis with replicas.
-- Tokens cannot be revoked before expiry (ADR-006 trade-off); logout only records the session end.
+- Each token carries its session (`sid`): logout, a disabled account or a role removed in
+  `security.user_role` (E-02: the token's roles are compared with the current ones and all the
+  person's sessions are revoked) close it; the gateway cuts those tokens within 30 seconds.
 - No login rate limiting here: it belongs to the API Gateway (ADR-005).
 - `audit` triggers and the per-service DB login (`svc_security`) are not created yet; dev uses `sa`.
 
