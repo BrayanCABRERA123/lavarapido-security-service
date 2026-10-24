@@ -352,6 +352,9 @@ class ApiSecurityWebTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        // SEC-09: se corta en la cadena de seguridad, antes de llamar a cualquier caso de uso
+        org.mockito.Mockito.verifyNoInteractions(updateRolePermissions, listRolePermissions, changeStatus,
+                createAccount, listAccounts);
     }
 
     @Test
@@ -455,5 +458,60 @@ class ApiSecurityWebTest {
     void internalAdminsWithoutTheKeyIsUnauthorized() throws Exception {
         mvc.perform(get("/internal/v1/users/admins"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ---------- SEC-09: la cuenta propia (los 403 de administración están en everyAdminRouteIsForbiddenToOtherRoles) ----------
+
+    @Test
+    void changingTheOwnPasswordOrEmailNeedsAToken() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/users/me/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"Lavado2026!\",\"newPassword\":\"Nueva2026!\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/users/me/email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newEmail\":\"ana.nueva@gmail.com\",\"currentPassword\":\"Lavado2026!\"}"))
+                .andExpect(status().isUnauthorized());
+        org.mockito.Mockito.verifyNoInteractions(changePassword, changeEmail);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "con {0}")
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"CLIENT", "OPERATOR", "ADMIN"})
+    void thePasswordChangedIsAlwaysTheOneOfTheUserAndSessionInTheToken(String role) throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/users/me/password")
+                        .header("Authorization", "Bearer " + validToken(List.of(role)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"Lavado2026!\",\"newPassword\":\"Nueva2026!\"}"))
+                .andExpect(status().isNoContent());
+        verify(changePassword).changePassword(org.mockito.ArgumentMatchers.argThat(command ->
+                command.userId() == 42L && command.sessionId() == 1L
+                        && "Lavado2026!".equals(command.currentPassword()) && "Nueva2026!".equals(command.newPassword())));
+    }
+
+    @Test
+    void theEmailChangedIsAlwaysTheOneOfTheUserInTheToken() throws Exception {
+        given(changeEmail.changeEmail(any())).willReturn(ANA);
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/users/me/email")
+                        .header("Authorization", "Bearer " + validToken(List.of("CLIENT")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newEmail\":\"ana.nueva@gmail.com\",\"currentPassword\":\"Lavado2026!\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("ana@gmail.com"));
+        verify(changeEmail).changeEmail(org.mockito.ArgumentMatchers.argThat(command ->
+                command.userId() == 42L && "ana.nueva@gmail.com".equals(command.newEmail())));
+    }
+
+    @Test
+    void aWrongCurrentPasswordAnswers400WithAStableCode() throws Exception {
+        given(changeEmail.changeEmail(any())).willThrow(
+                new com.lavarapido.security.domain.exception.IncorrectCurrentPasswordException());
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/users/me/email")
+                        .header("Authorization", "Bearer " + validToken(List.of("CLIENT")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newEmail\":\"ana.nueva@gmail.com\",\"currentPassword\":\"Wrong2026!\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INCORRECT_CURRENT_PASSWORD"));
     }
 }
