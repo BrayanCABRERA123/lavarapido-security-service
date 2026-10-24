@@ -14,6 +14,7 @@ import com.lavarapido.security.application.fake.InMemoryUserAccountRepository;
 import com.lavarapido.security.domain.event.PasswordChanged;
 import com.lavarapido.security.domain.exception.InvalidResetCodeException;
 import com.lavarapido.security.domain.exception.SamePasswordException;
+import com.lavarapido.security.domain.exception.TooManyAttemptsException;
 import com.lavarapido.security.domain.exception.WeakPasswordException;
 import com.lavarapido.security.domain.model.PasswordResetToken;
 import com.lavarapido.security.domain.model.UserAccount;
@@ -127,14 +128,53 @@ class PasswordRecoveryServiceTest {
     void tooManyWrongGuessesBurnTheCode() {
         service.requestReset(new RequestPasswordResetCommand(EMAIL, null));
 
-        for (int attempt = 0; attempt < 3; attempt++) {
+        for (int attempt = 0; attempt < 2; attempt++) {
             assertThatThrownBy(() -> service.verifyCode(new VerifyResetCodeCommand(EMAIL, "000000")))
                     .isInstanceOf(InvalidResetCodeException.class);
         }
+        // SEC-05: el intento que llega al tope (3 en esta prueba) avisa que hay que pedir otro código
+        assertThatThrownBy(() -> service.resetPassword(new ResetPasswordCommand(EMAIL, "000000", "Nueva2026!")))
+                .isInstanceOf(TooManyAttemptsException.class).extracting("code").isEqualTo("TOO_MANY_ATTEMPTS");
 
         // Ni el código correcto sirve ya: la fuerza bruta necesitaría un código nuevo cada 3 intentos.
+        // Sigue respondiendo TOO_MANY_ATTEMPTS para que la pantalla pida otro código.
+        assertThatThrownBy(() -> service.verifyCode(new VerifyResetCodeCommand(EMAIL, "123456")))
+                .isInstanceOf(TooManyAttemptsException.class);
+
+        // con un código nuevo se puede seguir
+        codes.nextCode = "654321";
+        service.requestReset(new RequestPasswordResetCommand(EMAIL, null));
+        assertThatThrownBy(() -> service.verifyCode(new VerifyResetCodeCommand(EMAIL, "000000")))
+                .isInstanceOf(InvalidResetCodeException.class);
+        assertThatCode(() -> service.verifyCode(new VerifyResetCodeCommand(EMAIL, "654321")))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void aBurnedCodeStopsAnsweringTooManyAttemptsWhenItExpires() {
+        service.requestReset(new RequestPasswordResetCommand(EMAIL, null));
+        for (int attempt = 0; attempt < 3; attempt++) {
+            assertThatThrownBy(() -> service.verifyCode(new VerifyResetCodeCommand(EMAIL, "000000")))
+                    .isInstanceOf(com.lavarapido.security.domain.exception.DomainException.class);
+        }
+
+        clock.advance(Duration.ofMinutes(16));
+
         assertThatThrownBy(() -> service.verifyCode(new VerifyResetCodeCommand(EMAIL, "123456")))
                 .isInstanceOf(InvalidResetCodeException.class);
+    }
+
+    @Test
+    void theCodeIsReadOnlyWithTheUserLocked() {
+        // SEC-05: sin el candado, intentos al mismo tiempo leían el código antes de que otro lo quemara
+        service.requestReset(new RequestPasswordResetCommand(EMAIL, null));
+
+        assertThatThrownBy(() -> service.verifyCode(new VerifyResetCodeCommand(EMAIL, "000000")))
+                .isInstanceOf(InvalidResetCodeException.class);
+        service.resetPassword(new ResetPasswordCommand(EMAIL, "123456", "Nueva2026!"));
+
+        assertThat(tokens.locked).containsExactly(anaId);
+        assertThat(tokens.unlockedReads).isZero();
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.lavarapido.security.domain.event.PasswordChanged;
 import com.lavarapido.security.domain.exception.InvalidResetCodeException;
 import com.lavarapido.security.domain.exception.InvalidValueException;
 import com.lavarapido.security.domain.exception.SamePasswordException;
+import com.lavarapido.security.domain.exception.TooManyAttemptsException;
 import com.lavarapido.security.domain.model.EmailAddress;
 import com.lavarapido.security.domain.model.PasswordResetToken;
 import com.lavarapido.security.domain.model.UserAccount;
@@ -33,8 +34,8 @@ import java.util.regex.Pattern;
  * Flujo de contraseña olvidada en tres pasos: pedir un código, verificarlo y poner la nueva contraseña.
  *
  * <p>Los intentos fallidos se cuentan y queman el código después de {@link PasswordRecoveryPolicy#maxFailedAttempts()}
- * intentos. Esos métodos no hacen rollback con {@link InvalidResetCodeException}; si no, la
- * invalidación la desharía la misma excepción que la reporta.
+ * intentos. Esos métodos no hacen rollback con {@link InvalidResetCodeException} ni con
+ * {@link TooManyAttemptsException}; si no, la invalidación la desharía la misma excepción que la reporta.
  */
 @Service
 @Transactional
@@ -96,7 +97,7 @@ public class PasswordRecoveryService
     }
 
     @Override
-    @Transactional(noRollbackFor = InvalidResetCodeException.class)
+    @Transactional(noRollbackFor = {InvalidResetCodeException.class, TooManyAttemptsException.class})
     public void verifyCode(VerifyResetCodeCommand command) {
         Instant now = clock.instant();
         UserAccount account = findActiveAccount(command.email()).orElseThrow(InvalidResetCodeException::new);
@@ -104,7 +105,7 @@ public class PasswordRecoveryService
     }
 
     @Override
-    @Transactional(noRollbackFor = InvalidResetCodeException.class)
+    @Transactional(noRollbackFor = {InvalidResetCodeException.class, TooManyAttemptsException.class})
     public void resetPassword(ResetPasswordCommand command) {
         Instant now = clock.instant();
         UserAccount account = findActiveAccount(command.email()).orElseThrow(InvalidResetCodeException::new);
@@ -129,9 +130,20 @@ public class PasswordRecoveryService
         events.publish(new PasswordChanged(account.id(), PasswordChanged.Reason.RECOVERED, now));
     }
 
+    /**
+     * SEC-05: el código se lee y se compara con el candado del usuario puesto, así los intentos al
+     * mismo tiempo se cuentan uno detrás del otro y ninguno usa un código que otro ya quemó. El
+     * intento que llega al tope quema el código y responde TOO_MANY_ATTEMPTS; los siguientes también,
+     * hasta que se pida otro código o venza el quemado (sus fallos se conservan para saberlo).
+     */
     private PasswordResetToken checkCode(UserAccount account, String code, Instant now) {
-        PasswordResetToken token = resetTokens.findLatestRedeemableByUserId(account.id(), now)
-                .orElseThrow(InvalidResetCodeException::new);
+        resetTokens.lockUser(account.id());
+        Optional<PasswordResetToken> redeemable = resetTokens.findLatestRedeemableByUserId(account.id(), now);
+        if (redeemable.isEmpty()) {
+            throw lastCodeBurnedByAttempts(account.id(), now)
+                    ? new TooManyAttemptsException() : new InvalidResetCodeException();
+        }
+        PasswordResetToken token = redeemable.get();
 
         boolean matches = code != null && CODE_FORMAT.matcher(code).matches()
                 && passwordHasher.matches(code, token.codeHash());
@@ -139,11 +151,19 @@ public class PasswordRecoveryService
             if (attemptCounter.recordFailure(token.id()) >= recoveryPolicy.maxFailedAttempts()) {
                 token.invalidate(now);
                 resetTokens.save(token);
-                attemptCounter.clear(token.id());
+                throw new TooManyAttemptsException();
             }
             throw new InvalidResetCodeException();
         }
         return token;
+    }
+
+    /** El último código que se pidió se quemó por intentos y todavía no vence. */
+    private boolean lastCodeBurnedByAttempts(long userId, Instant now) {
+        return resetTokens.findLatestByUserId(userId)
+                .filter(last -> last.expiresAt().isAfter(now))
+                .filter(last -> attemptCounter.failures(last.id()) >= recoveryPolicy.maxFailedAttempts())
+                .isPresent();
     }
 
     private Optional<UserAccount> findActiveAccount(String rawEmail) {

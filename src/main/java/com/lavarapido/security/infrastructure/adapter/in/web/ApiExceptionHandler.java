@@ -8,6 +8,7 @@ import com.lavarapido.security.domain.exception.DocumentAlreadyRegisteredExcepti
 import com.lavarapido.security.domain.exception.DomainException;
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.InvalidCredentialsException;
+import com.lavarapido.security.domain.exception.TooManyAttemptsException;
 import com.lavarapido.security.domain.exception.UserNotFoundException;
 import com.lavarapido.security.domain.exception.WeakPasswordException;
 import org.slf4j.Logger;
@@ -87,6 +88,7 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case InvalidCredentialsException ignored -> HttpStatus.UNAUTHORIZED;
             case AccountDisabledException ignored -> HttpStatus.FORBIDDEN;
             case AccountLockedException ignored -> HttpStatus.LOCKED;
+            case TooManyAttemptsException ignored -> HttpStatus.LOCKED;
             case CannotDisableOwnAccountException ignored -> HttpStatus.FORBIDDEN;
             case AdminAccountCannotBeDisabledException ignored -> HttpStatus.FORBIDDEN;
             case UserNotFoundException ignored -> HttpStatus.NOT_FOUND;

@@ -175,6 +175,18 @@ class ApiSecurityWebTest {
     }
 
     @Test
+    void tooManyWrongResetCodesAnswer423WithAStableCode() throws Exception {
+        // SEC-05: el intento que quema el código de recuperación
+        org.mockito.BDDMockito.willThrow(new com.lavarapido.security.domain.exception.TooManyAttemptsException())
+                .given(verifyPasswordResetCode).verifyCode(any());
+
+        mvc.perform(post("/api/v1/auth/password/verify").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ana@gmail.com\",\"code\":\"000000\"}"))
+                .andExpect(status().isLocked())
+                .andExpect(jsonPath("$.code").value("TOO_MANY_ATTEMPTS"));
+    }
+
+    @Test
     void invalidRegistrationFieldsAreListed() throws Exception {
         mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"documentNumber\":\"1023456789\",\"firstName\":\"Ana\",\"lastName\":\"Pérez\","
