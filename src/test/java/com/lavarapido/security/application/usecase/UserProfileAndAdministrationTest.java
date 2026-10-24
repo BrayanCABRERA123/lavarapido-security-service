@@ -58,7 +58,7 @@ class UserProfileAndAdministrationTest {
     @BeforeEach
     void registerAna() {
         anaId = registration.register(new RegisterUserCommand("1023456789", "Ana", "Pérez", "ana@gmail.com",
-                "3001234567", "Lavado2026!")).id();
+                "3001234567", "Lavado2026!", true, true)).id();
     }
 
     @Nested
@@ -240,7 +240,7 @@ class UserProfileAndAdministrationTest {
         @Test
         void cannotTakeAnEmailThatBelongsToSomeoneElse() {
             registration.register(new RegisterUserCommand("80000001", "Luis", "Gómez", "luis@gmail.com", null,
-                    "Lavado2026!"));
+                    "Lavado2026!", true, true));
 
             assertThatThrownBy(() -> service.changeEmail(new ChangeEmailCommand(anaId, "luis@gmail.com", "Lavado2026!")))
                     .isInstanceOf(EmailAlreadyRegisteredException.class);

@@ -12,7 +12,8 @@ public record RegisterRequest(
         @NotBlank @Email @Size(max = 60) String email,
         @Size(max = 20) String phone,
         @NotBlank @Size(max = 72) String password,
-        // opcionales para no romper versiones anteriores de la app; la web y la app nuevas los envían
+        // obligatorios en true (SEC-07, Ley 1581). No se validan aquí sino en el caso de uso, para que
+        // la respuesta sea CONSENT_REQUIRED y no un VALIDATION_ERROR genérico
         Boolean acceptsTerms,
         Boolean acceptsDataPolicy) {
 

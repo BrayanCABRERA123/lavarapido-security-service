@@ -1,5 +1,6 @@
 package com.lavarapido.security.infrastructure.config;
 
+import com.lavarapido.security.domain.exception.ConsentRequiredException;
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.InvalidCredentialsException;
 import com.lavarapido.security.domain.exception.UserNotFoundException;
@@ -53,6 +54,7 @@ import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -191,6 +193,19 @@ class ApiSecurityWebTest {
                                 + "\"email\":\"ana@gmail.com\",\"password\":\"Lavado2026!\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_REGISTERED"));
+    }
+
+    @Test
+    void registeringWithoutTheLegalBoxesAnswers400ConsentRequired() throws Exception {
+        // SEC-07: el controlador no da las casillas por aceptadas si no llegan; el caso de uso lo rechaza
+        given(registerUser.register(any())).willThrow(new ConsentRequiredException());
+
+        mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"documentNumber\":\"1023456789\",\"firstName\":\"Ana\",\"lastName\":\"Pérez\","
+                                + "\"email\":\"ana@gmail.com\",\"password\":\"Lavado2026!\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CONSENT_REQUIRED"));
+        verify(registerUser).register(argThat(command -> !command.acceptsTerms() && !command.acceptsDataPolicy()));
     }
 
     @Test

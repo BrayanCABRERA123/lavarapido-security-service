@@ -47,7 +47,8 @@ class AuthenticationServiceTest {
     void registerAna() {
         anaId = new AccountRegistrationService(accounts, new PlainPasswordHasher(), new PasswordPolicy(),
                 new RecordingEventPublisher(), clock, AllowedEmailDomains.parse("gmail.com"))
-                .register(new RegisterUserCommand("1023456789", "Ana", "Pérez", "ana@gmail.com", null, "Lavado2026!"))
+                .register(new RegisterUserCommand("1023456789", "Ana", "Pérez", "ana@gmail.com", null, "Lavado2026!",
+                        true, true))
                 .id();
     }
 
