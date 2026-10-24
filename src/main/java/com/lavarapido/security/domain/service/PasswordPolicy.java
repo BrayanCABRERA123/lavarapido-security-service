@@ -2,13 +2,15 @@ package com.lavarapido.security.domain.service;
 
 import com.lavarapido.security.domain.exception.WeakPasswordException;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * La única regla de contraseñas del sistema: los mismos cuatro requisitos que muestra el frontend
  * en su lista (mínimo 8 caracteres, una mayúscula, un número y un
- * carácter especial). El tope de 72 caracteres es el límite de entrada de BCrypt.
+ * carácter especial). El tope de 72 es el límite de entrada de BCrypt, que cuenta bytes y no letras:
+ * en UTF-8 una tilde o una ñ ocupa 2 bytes (SEC-11). Pasarse de 72 bytes hacía fallar el hash con un 500.
  */
 public final class PasswordPolicy {
 
@@ -22,7 +24,7 @@ public final class PasswordPolicy {
         if (password.length() < MIN_LENGTH) {
             violations.add("MIN_LENGTH");
         }
-        if (password.length() > MAX_LENGTH) {
+        if (password.length() > MAX_LENGTH || password.getBytes(StandardCharsets.UTF_8).length > MAX_LENGTH) {
             violations.add("MAX_LENGTH");
         }
         if (password.chars().noneMatch(Character::isUpperCase)) {
