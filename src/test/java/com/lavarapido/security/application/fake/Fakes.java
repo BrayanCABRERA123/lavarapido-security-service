@@ -119,6 +119,11 @@ public final class Fakes {
         }
 
         @Override
+        public int failures(long tokenId) {
+            return failures.getOrDefault(tokenId, 0);
+        }
+
+        @Override
         public void clear(long tokenId) {
             failures.remove(tokenId);
         }
