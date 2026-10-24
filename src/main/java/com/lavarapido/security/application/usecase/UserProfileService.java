@@ -3,6 +3,7 @@ package com.lavarapido.security.application.usecase;
 import com.lavarapido.security.domain.event.PasswordChanged;
 import com.lavarapido.security.domain.exception.IncorrectCurrentPasswordException;
 import com.lavarapido.security.domain.exception.SamePasswordException;
+import com.lavarapido.security.domain.exception.TooManyAttemptsException;
 import com.lavarapido.security.domain.exception.UserNotFoundException;
 import com.lavarapido.security.domain.model.PersonName;
 import com.lavarapido.security.domain.model.PhoneNumber;
@@ -33,16 +34,18 @@ public class UserProfileService implements GetUserProfileUseCase, UpdateUserProf
     private final PasswordPolicy passwordPolicy;
     private final DomainEventPublisher events;
     private final Clock clock;
+    private final CurrentPasswordVerifier currentPassword;
 
     public UserProfileService(UserAccountRepository accounts, UserSessionRepository sessions,
                               PasswordHasher passwordHasher, PasswordPolicy passwordPolicy,
-                              DomainEventPublisher events, Clock clock) {
+                              DomainEventPublisher events, Clock clock, CurrentPasswordVerifier currentPassword) {
         this.accounts = accounts;
         this.sessions = sessions;
         this.passwordHasher = passwordHasher;
         this.passwordPolicy = passwordPolicy;
         this.events = events;
         this.clock = clock;
+        this.currentPassword = currentPassword;
     }
 
     @Override
@@ -60,12 +63,12 @@ public class UserProfileService implements GetUserProfileUseCase, UpdateUserProf
     }
 
     @Override
+    @Transactional(noRollbackFor = {IncorrectCurrentPasswordException.class, TooManyAttemptsException.class})
     public void changePassword(ChangePasswordCommand command) {
         UserAccount account = load(command.userId());
 
-        if (!passwordHasher.matches(command.currentPassword(), account.passwordHash())) {
-            throw new IncorrectCurrentPasswordException();
-        }
+        // SEC-12: los errores cuentan en el bloqueo de la cuenta (CurrentPasswordVerifier)
+        currentPassword.verify(account, command.currentPassword());
         passwordPolicy.validate(command.newPassword());
         if (passwordHasher.matches(command.newPassword(), account.passwordHash())) {
             throw new SamePasswordException();
