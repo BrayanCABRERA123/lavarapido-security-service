@@ -67,6 +67,11 @@ spring:
 server:
   port: ${PORT:3001}
   shutdown: graceful
+  # SEC-11: la IP real del cliente para las sesiones y los códigos de recuperación. Las llamadas llegan
+  # desde el gateway (red privada de Docker) y el gateway pone en X-Forwarded-For la IP del cliente.
+  # Tomcat solo cree ese encabezado si la conexión viene de una IP privada o local
+  # (server.tomcat.remoteip.internal-proxies; se cambia con SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES).
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:native}
 
 security:
   jwt:
