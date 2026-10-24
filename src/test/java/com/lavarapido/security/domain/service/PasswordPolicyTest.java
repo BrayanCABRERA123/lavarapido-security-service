@@ -39,6 +39,29 @@ class PasswordPolicyTest {
     }
 
     @Test
+    void theLimitIsInBytesBecauseBcryptCountsBytes() {
+        // SEC-11: 43 caracteres pero 83 bytes en UTF-8 (cada ñ ocupa 2); antes pasaba y el hash daba 500
+        String accented = "A1!" + "ñ".repeat(40);
+        assertThatThrownBy(() -> policy.validate(accented))
+                .isInstanceOf(WeakPasswordException.class)
+                .extracting("violations").asList().contains("MAX_LENGTH");
+
+        // 36 ñ + "A1!" = 75 bytes; 34 ñ + "A1!" = 71 bytes
+        assertThatThrownBy(() -> policy.validate("A1!" + "ñ".repeat(36))).isInstanceOf(WeakPasswordException.class);
+        assertThatCode(() -> policy.validate("A1!" + "ñ".repeat(34))).doesNotThrowAnyException();
+    }
+
+    @Test
+    void aPasswordThePolicyAcceptsCanAlwaysBeHashedWithBcrypt() {
+        org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder bcrypt =
+                new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(4);
+        String longest = "A1!" + "ñ".repeat(34) + "a";
+
+        assertThatCode(() -> policy.validate(longest)).doesNotThrowAnyException();
+        assertThatCode(() -> bcrypt.encode(longest)).doesNotThrowAnyException();
+    }
+
+    @Test
     void treatsNullAsEmpty() {
         assertThatThrownBy(() -> policy.validate(null)).isInstanceOf(WeakPasswordException.class);
     }

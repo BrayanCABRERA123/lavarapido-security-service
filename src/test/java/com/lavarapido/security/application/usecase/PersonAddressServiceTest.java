@@ -1,5 +1,6 @@
 package com.lavarapido.security.application.usecase;
 
+import com.lavarapido.security.domain.model.AllowedEmailDomains;
 import com.lavarapido.security.application.fake.Fakes.MutableClock;
 import com.lavarapido.security.application.fake.Fakes.PlainPasswordHasher;
 import com.lavarapido.security.application.fake.Fakes.RecordingEventPublisher;
@@ -31,8 +32,9 @@ class PersonAddressServiceTest {
     @BeforeEach
     void registerAna() {
         anaId = new AccountRegistrationService(accounts, new PlainPasswordHasher(), new PasswordPolicy(),
-                new RecordingEventPublisher(), new MutableClock(Instant.parse("2026-10-15T15:00:00Z")))
-                .register(new RegisterUserCommand("1023456789", "Ana", "Pérez", "ana@gmail.com", null, "Lavado2026!"))
+                new RecordingEventPublisher(), new MutableClock(Instant.parse("2026-10-15T15:00:00Z")), AllowedEmailDomains.parse("gmail.com"))
+                .register(new RegisterUserCommand("1023456789", "Ana", "Pérez", "ana@gmail.com", null, "Lavado2026!",
+                        true, true))
                 .id();
     }
 

@@ -6,5 +6,8 @@ public interface ResetAttemptCounter {
     /** @return la cantidad de fallos registrados para este código, incluido este */
     int recordFailure(long tokenId);
 
+    /** @return los fallos registrados para este código (0 si no tiene) */
+    int failures(long tokenId);
+
     void clear(long tokenId);
 }

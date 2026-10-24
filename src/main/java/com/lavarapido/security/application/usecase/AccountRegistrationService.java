@@ -1,9 +1,11 @@
 package com.lavarapido.security.application.usecase;
 
 import com.lavarapido.security.domain.event.UserRegistered;
+import com.lavarapido.security.domain.exception.ConsentRequiredException;
 import com.lavarapido.security.domain.exception.DocumentAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.InvalidValueException;
+import com.lavarapido.security.domain.model.AllowedEmailDomains;
 import com.lavarapido.security.domain.model.DocumentNumber;
 import com.lavarapido.security.domain.model.EmailAddress;
 import com.lavarapido.security.domain.model.Person;
@@ -37,21 +39,28 @@ public class AccountRegistrationService implements RegisterUserUseCase, CreateUs
     private final PasswordPolicy passwordPolicy;
     private final DomainEventPublisher events;
     private final Clock clock;
+    private final AllowedEmailDomains allowedDomains;
 
     public AccountRegistrationService(UserAccountRepository accounts, PasswordHasher passwordHasher,
-                                      PasswordPolicy passwordPolicy, DomainEventPublisher events, Clock clock) {
+                                      PasswordPolicy passwordPolicy, DomainEventPublisher events, Clock clock,
+                                      AllowedEmailDomains allowedDomains) {
         this.accounts = accounts;
         this.passwordHasher = passwordHasher;
         this.passwordPolicy = passwordPolicy;
         this.events = events;
         this.clock = clock;
+        this.allowedDomains = allowedDomains;
     }
 
     @Override
     public UserAccountView register(RegisterUserCommand command) {
+        // SEC-07 (Ley 1581): sin las dos casillas no hay cuenta; la web y la app ya las exigen, aquí
+        // se exige también para quien llame a la API directamente
+        if (!command.acceptsTerms() || !command.acceptsDataPolicy()) {
+            throw new ConsentRequiredException();
+        }
         UserAccount account = open(command.documentNumber(), command.firstName(), command.lastName(),
-                command.email(), command.phone(), command.password(), Set.of(RoleCode.CLIENT), false,
-                command.acceptsTerms() && command.acceptsDataPolicy());
+                command.email(), command.phone(), command.password(), Set.of(RoleCode.CLIENT), false, true);
         return UserAccountView.from(account);
     }
 
@@ -74,7 +83,7 @@ public class AccountRegistrationService implements RegisterUserUseCase, CreateUs
                              boolean acceptedLegalDocuments) {
         DocumentNumber document = DocumentNumber.of(rawDocument);
         PersonName name = PersonName.of(firstName, lastName);
-        EmailAddress email = EmailAddress.of(rawEmail);
+        EmailAddress email = EmailAddress.of(rawEmail).requireDomainIn(allowedDomains);
         PhoneNumber phone = PhoneNumber.ofNullable(rawPhone);
         passwordPolicy.validate(rawPassword);
 

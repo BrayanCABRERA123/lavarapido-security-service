@@ -1,10 +1,12 @@
 package com.lavarapido.security.application.usecase;
 
+import com.lavarapido.security.domain.model.AllowedEmailDomains;
 import com.lavarapido.security.application.fake.Fakes.MutableClock;
 import com.lavarapido.security.application.fake.Fakes.PlainPasswordHasher;
 import com.lavarapido.security.application.fake.Fakes.RecordingEventPublisher;
 import com.lavarapido.security.application.fake.InMemoryUserAccountRepository;
 import com.lavarapido.security.domain.event.UserRegistered;
+import com.lavarapido.security.domain.exception.ConsentRequiredException;
 import com.lavarapido.security.domain.exception.DocumentAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.InvalidValueException;
@@ -34,10 +36,11 @@ class AccountRegistrationServiceTest {
     private final RecordingEventPublisher events = new RecordingEventPublisher();
     private final AccountRegistrationService service = new AccountRegistrationService(accounts,
             new PlainPasswordHasher(), new PasswordPolicy(), events,
-            new MutableClock(Instant.parse("2026-09-29T15:00:00Z")));
+            new MutableClock(Instant.parse("2026-09-29T15:00:00Z")), AllowedEmailDomains.parse("gmail.com"));
 
     private static RegisterUserCommand ana() {
-        return new RegisterUserCommand("1023456789", "Ana", "Pérez", "Ana@Gmail.com", "3001234567", "Lavado2026!");
+        return new RegisterUserCommand("1023456789", "Ana", "Pérez", "Ana@Gmail.com", "3001234567", "Lavado2026!",
+                true, true);
     }
 
     @Test
@@ -62,13 +65,32 @@ class AccountRegistrationServiceTest {
     }
 
     @Test
-    void noConsentIsRecordedWhenTheBoxesAreNotSent() {
-        UserAccountView withoutBoxes = service.register(ana());
-        UserAccountView onlyTerms = service.register(new RegisterUserCommand("80000002", "Luis", "Gómez",
-                "luis@gmail.com", null, "Lavado2026!", true, false));
+    void withoutBothLegalBoxesNoAccountIsOpened() {
+        // SEC-07 (Ley 1581): las dos casillas son obligatorias también para quien llama a la API directo
+        for (boolean[] boxes : new boolean[][]{{false, false}, {true, false}, {false, true}}) {
+            RegisterUserCommand command = new RegisterUserCommand("80000002", "Luis", "Gómez", "luis@gmail.com",
+                    null, "Lavado2026!", boxes[0], boxes[1]);
 
-        assertThat(accounts.findById(withoutBoxes.id()).orElseThrow().termsAcceptedAt()).isNull();
-        assertThat(accounts.findById(onlyTerms.id()).orElseThrow().dataPolicyAcceptedAt()).isNull();
+            assertThatThrownBy(() -> service.register(command))
+                    .isInstanceOf(ConsentRequiredException.class).extracting("code").isEqualTo("CONSENT_REQUIRED");
+        }
+        assertThat(accounts.count()).isZero();
+        assertThat(events.events).isEmpty();
+    }
+
+    @Test
+    void onlyAllowedEmailDomainsCanRegisterOrBeCreatedByTheAdmin() {
+        // A-01: el servidor valida el dominio (ALLOWED_EMAIL_DOMAINS, por defecto gmail.com)
+        RegisterUserCommand hotmail = new RegisterUserCommand("1023456789", "Ana", "Pérez", "ana@hotmail.com",
+                null, "Lavado2026!", true, true);
+        CreateUserAccountCommand outlook = new CreateUserAccountCommand("80000003", "Oscar", "Ruiz",
+                "oscar@outlook.com", null, "Lavado2026!", Set.of(RoleCode.OPERATOR));
+
+        assertThatThrownBy(() -> service.register(hotmail))
+                .isInstanceOf(InvalidValueException.class).extracting("code").isEqualTo("EMAIL_DOMAIN_NOT_ALLOWED");
+        assertThatThrownBy(() -> service.createAccount(outlook))
+                .isInstanceOf(InvalidValueException.class).extracting("code").isEqualTo("EMAIL_DOMAIN_NOT_ALLOWED");
+        assertThat(events.events).isEmpty();
     }
 
     @Test
@@ -76,7 +98,7 @@ class AccountRegistrationServiceTest {
         service.register(ana());
 
         RegisterUserCommand sameEmail = new RegisterUserCommand("99999999", "Otra", "Persona", "ana@gmail.com",
-                null, "Lavado2026!");
+                null, "Lavado2026!", true, true);
 
         assertThatThrownBy(() -> service.register(sameEmail)).isInstanceOf(EmailAlreadyRegisteredException.class);
         assertThat(accounts.count()).isEqualTo(1);
@@ -87,7 +109,7 @@ class AccountRegistrationServiceTest {
         service.register(ana());
 
         RegisterUserCommand sameDocument = new RegisterUserCommand("1.023.456.789", "Ana", "Pérez",
-                "otra@gmail.com", null, "Lavado2026!");
+                "otra@gmail.com", null, "Lavado2026!", true, true);
 
         assertThatThrownBy(() -> service.register(sameDocument))
                 .isInstanceOf(DocumentAlreadyRegisteredException.class);
@@ -110,7 +132,7 @@ class AccountRegistrationServiceTest {
     @Test
     void aWeakPasswordIsRejectedBeforeAnythingIsStored() {
         RegisterUserCommand weak = new RegisterUserCommand("1023456789", "Ana", "Pérez", "ana@gmail.com",
-                null, "lavado");
+                null, "lavado", true, true);
 
         assertThatThrownBy(() -> service.register(weak)).isInstanceOf(WeakPasswordException.class);
         assertThat(accounts.count()).isZero();

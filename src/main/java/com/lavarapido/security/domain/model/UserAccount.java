@@ -58,6 +58,11 @@ public final class UserAccount {
         return create(person, email, passwordHash, Set.of(RoleCode.CLIENT));
     }
 
+    /** Sigue teniendo todos esos roles (los de un token emitido antes de un cambio en user_role, E-02). */
+    public boolean stillHas(Set<RoleCode> granted) {
+        return roles.containsAll(granted);
+    }
+
     /** Cuenta creada por un administrador (ej. un operario), con roles explícitos. */
     public static UserAccount create(Person person, EmailAddress email, HashedPassword passwordHash, Set<RoleCode> roles) {
         return new UserAccount(null, person, email, passwordHash, true, null, null, roles);

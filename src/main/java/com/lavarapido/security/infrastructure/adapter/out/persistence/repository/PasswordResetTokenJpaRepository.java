@@ -13,4 +13,7 @@ public interface PasswordResetTokenJpaRepository extends JpaRepository<PasswordR
 
     Optional<PasswordResetTokenJpaEntity> findFirstByUserIdAndUsedAtIsNullAndExpiresAtAfterOrderByRequestedAtDescIdDesc(
             Long userId, Instant now);
+
+    /** El último código pedido, se haya usado o no (SEC-05: saber si el último se quemó por intentos). */
+    Optional<PasswordResetTokenJpaEntity> findFirstByUserIdOrderByRequestedAtDescIdDesc(Long userId);
 }

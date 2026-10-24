@@ -6,9 +6,8 @@ spring:
       include-stacktrace: never
   application:
     name: security-service
-  # En local se usa el perfil dev salvo que SPRING_PROFILES_ACTIVE diga otra cosa.
-  profiles:
-    default: dev
+  # E-05 (H-06): sin perfil por defecto. En local se activa dev a mano (SPRING_PROFILES_ACTIVE=dev, como
+  # hace docker-compose.yml); así un despliegue que olvide la variable no arranca con Swagger ni cuentas demo.
   # Los secretos locales viven en lavarapido-infra/.env (no se sube), compartido con docker compose.
   # Un .env propio en la carpeta del servicio tiene prioridad. Las variables de entorno reales
   # siempre ganan sobre estos archivos.
@@ -68,6 +67,11 @@ spring:
 server:
   port: ${PORT:3001}
   shutdown: graceful
+  # SEC-11: la IP real del cliente para las sesiones y los códigos de recuperación. Las llamadas llegan
+  # desde el gateway (red privada de Docker) y el gateway pone en X-Forwarded-For la IP del cliente.
+  # Tomcat solo cree ese encabezado si la conexión viene de una IP privada o local
+  # (server.tomcat.remoteip.internal-proxies; se cambia con SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES).
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:native}
 
 security:
   jwt:
@@ -82,6 +86,9 @@ security:
     max-failed-attempts: 5
 
 app:
+  # A-01 (RF-001): dominios de correo permitidos al registrarse, al crear usuarios y al cambiar el
+  # correo, separados por comas
+  allowed-email-domains: ${ALLOWED_EMAIL_DOMAINS:gmail.com}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:8081}
   messaging:
@@ -94,6 +101,11 @@ app:
   internal:
     # llave que comparten los servicios para /internal/** (X-Internal-Key). Vacía: rutas cerradas
     api-key: ${INTERNAL_API_KEY:}
+  # SOLO perfil dev (DevDataSeeder): contraseñas de las cuentas demo; vacía = esa cuenta no se crea
+  demo:
+    admin-password: ${DEMO_ADMIN_PASSWORD:}
+    operator-password: ${DEMO_OPERATOR_PASSWORD:}
+    client-password: ${DEMO_CLIENT_PASSWORD:}
   # primer administrador de una instalación nueva (producción). Solo se usa si no hay ningún
   # administrador; vacío: no se crea nada (en desarrollo lo crea DevDataSeeder)
   bootstrap-admin:

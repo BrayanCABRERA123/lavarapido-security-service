@@ -1,5 +1,6 @@
 package com.lavarapido.security.infrastructure.config;
 
+import com.lavarapido.security.domain.exception.ConsentRequiredException;
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.InvalidCredentialsException;
 import com.lavarapido.security.domain.exception.UserNotFoundException;
@@ -53,6 +54,7 @@ import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -129,7 +131,7 @@ class ApiSecurityWebTest {
     /** Por defecto la sesión del token sigue abierta; las pruebas de sesión cerrada lo cambian. */
     @BeforeEach
     void openSessions() {
-        given(sessionStatus.isActive(anyLong(), anyLong())).willReturn(true);
+        given(sessionStatus.isActive(anyLong(), anyLong(), any())).willReturn(true);
     }
 
     private String validToken(List<String> roles) {
@@ -173,6 +175,18 @@ class ApiSecurityWebTest {
     }
 
     @Test
+    void tooManyWrongResetCodesAnswer423WithAStableCode() throws Exception {
+        // SEC-05: el intento que quema el código de recuperación
+        org.mockito.BDDMockito.willThrow(new com.lavarapido.security.domain.exception.TooManyAttemptsException())
+                .given(verifyPasswordResetCode).verifyCode(any());
+
+        mvc.perform(post("/api/v1/auth/password/verify").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ana@gmail.com\",\"code\":\"000000\"}"))
+                .andExpect(status().isLocked())
+                .andExpect(jsonPath("$.code").value("TOO_MANY_ATTEMPTS"));
+    }
+
+    @Test
     void invalidRegistrationFieldsAreListed() throws Exception {
         mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"documentNumber\":\"1023456789\",\"firstName\":\"Ana\",\"lastName\":\"Pérez\","
@@ -194,6 +208,19 @@ class ApiSecurityWebTest {
     }
 
     @Test
+    void registeringWithoutTheLegalBoxesAnswers400ConsentRequired() throws Exception {
+        // SEC-07: el controlador no da las casillas por aceptadas si no llegan; el caso de uso lo rechaza
+        given(registerUser.register(any())).willThrow(new ConsentRequiredException());
+
+        mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"documentNumber\":\"1023456789\",\"firstName\":\"Ana\",\"lastName\":\"Pérez\","
+                                + "\"email\":\"ana@gmail.com\",\"password\":\"Lavado2026!\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CONSENT_REQUIRED"));
+        verify(registerUser).register(argThat(command -> !command.acceptsTerms() && !command.acceptsDataPolicy()));
+    }
+
+    @Test
     void forgotPasswordAlwaysAnswers202() throws Exception {
         mvc.perform(post("/api/v1/auth/password/forgot").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"nadie@gmail.com\"}"))
@@ -204,7 +231,17 @@ class ApiSecurityWebTest {
     void theSessionCheckAnswers204WhileTheSessionIsOpen() throws Exception {
         mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + validToken(List.of("CLIENT"))))
                 .andExpect(status().isNoContent());
-        verify(sessionStatus).isActive(42L, 1L);
+        // E-02: también viajan los roles del token, para compararlos con los actuales
+        verify(sessionStatus).isActive(42L, 1L, Set.of(RoleCode.CLIENT));
+    }
+
+    @Test
+    void aTokenWithARoleTheAccountNoLongerHasIsRejected() throws Exception {
+        // E-02: el token dice ADMIN pero ese rol ya se le quitó en la base
+        given(sessionStatus.isActive(42L, 1L, Set.of(RoleCode.ADMIN))).willReturn(false);
+
+        mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + validToken(List.of("ADMIN"))))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -216,7 +253,7 @@ class ApiSecurityWebTest {
     @Test
     void aTokenOfAClosedSessionNoLongerWorks() throws Exception {
         // logout, cuenta inhabilitada o desactivada: el token sigue firmado y vigente pero ya no sirve
-        given(sessionStatus.isActive(42L, 1L)).willReturn(false);
+        given(sessionStatus.isActive(42L, 1L, Set.of(RoleCode.CLIENT))).willReturn(false);
         String token = validToken(List.of("CLIENT"));
 
         mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + token))
@@ -234,7 +271,7 @@ class ApiSecurityWebTest {
                 .build();
         String token = jwtEncoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
                 .getTokenValue();
-        given(sessionStatus.isActive(anyLong(), anyLong())).willReturn(false);
+        given(sessionStatus.isActive(anyLong(), anyLong(), any())).willReturn(false);
 
         mvc.perform(get("/api/v1/auth/session").header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent());
@@ -292,6 +329,32 @@ class ApiSecurityWebTest {
         mvc.perform(get("/api/v1/admin/users").header("Authorization", "Bearer " + validToken(List.of("CLIENT"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "CLIENT, GET, /api/v1/admin/users",
+            "OPERATOR, GET, /api/v1/admin/users",
+            "CLIENT, POST, /api/v1/admin/users",
+            "OPERATOR, POST, /api/v1/admin/users",
+            "CLIENT, PATCH, /api/v1/admin/users/2/status",
+            "OPERATOR, PATCH, /api/v1/admin/users/2/status",
+            "CLIENT, GET, /api/v1/admin/roles-permissions",
+            "OPERATOR, GET, /api/v1/admin/roles-permissions",
+            "CLIENT, PUT, /api/v1/admin/roles-permissions/OPERATOR",
+            "OPERATOR, PUT, /api/v1/admin/roles-permissions/OPERATOR"
+    })
+    void everyAdminRouteIsForbiddenToOtherRoles(String role, String method, String path) throws Exception {
+        // F-04: ninguna ruta de administración responde a un cliente ni a un operario (403)
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .request(org.springframework.http.HttpMethod.valueOf(method), path)
+                        .header("Authorization", "Bearer " + validToken(List.of(role)))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        // SEC-09: se corta en la cadena de seguridad, antes de llamar a cualquier caso de uso
+        org.mockito.Mockito.verifyNoInteractions(updateRolePermissions, listRolePermissions, changeStatus,
+                createAccount, listAccounts);
     }
 
     @Test
@@ -395,5 +458,60 @@ class ApiSecurityWebTest {
     void internalAdminsWithoutTheKeyIsUnauthorized() throws Exception {
         mvc.perform(get("/internal/v1/users/admins"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ---------- SEC-09: la cuenta propia (los 403 de administración están en everyAdminRouteIsForbiddenToOtherRoles) ----------
+
+    @Test
+    void changingTheOwnPasswordOrEmailNeedsAToken() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/users/me/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"Lavado2026!\",\"newPassword\":\"Nueva2026!\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/users/me/email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newEmail\":\"ana.nueva@gmail.com\",\"currentPassword\":\"Lavado2026!\"}"))
+                .andExpect(status().isUnauthorized());
+        org.mockito.Mockito.verifyNoInteractions(changePassword, changeEmail);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "con {0}")
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"CLIENT", "OPERATOR", "ADMIN"})
+    void thePasswordChangedIsAlwaysTheOneOfTheUserAndSessionInTheToken(String role) throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/users/me/password")
+                        .header("Authorization", "Bearer " + validToken(List.of(role)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"Lavado2026!\",\"newPassword\":\"Nueva2026!\"}"))
+                .andExpect(status().isNoContent());
+        verify(changePassword).changePassword(org.mockito.ArgumentMatchers.argThat(command ->
+                command.userId() == 42L && command.sessionId() == 1L
+                        && "Lavado2026!".equals(command.currentPassword()) && "Nueva2026!".equals(command.newPassword())));
+    }
+
+    @Test
+    void theEmailChangedIsAlwaysTheOneOfTheUserInTheToken() throws Exception {
+        given(changeEmail.changeEmail(any())).willReturn(ANA);
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/users/me/email")
+                        .header("Authorization", "Bearer " + validToken(List.of("CLIENT")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newEmail\":\"ana.nueva@gmail.com\",\"currentPassword\":\"Lavado2026!\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("ana@gmail.com"));
+        verify(changeEmail).changeEmail(org.mockito.ArgumentMatchers.argThat(command ->
+                command.userId() == 42L && "ana.nueva@gmail.com".equals(command.newEmail())));
+    }
+
+    @Test
+    void aWrongCurrentPasswordAnswers400WithAStableCode() throws Exception {
+        given(changeEmail.changeEmail(any())).willThrow(
+                new com.lavarapido.security.domain.exception.IncorrectCurrentPasswordException());
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/users/me/email")
+                        .header("Authorization", "Bearer " + validToken(List.of("CLIENT")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newEmail\":\"ana.nueva@gmail.com\",\"currentPassword\":\"Wrong2026!\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INCORRECT_CURRENT_PASSWORD"));
     }
 }

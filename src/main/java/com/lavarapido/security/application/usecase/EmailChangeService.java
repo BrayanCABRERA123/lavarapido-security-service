@@ -3,13 +3,14 @@ package com.lavarapido.security.application.usecase;
 import com.lavarapido.security.domain.event.EmailChanged;
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.IncorrectCurrentPasswordException;
+import com.lavarapido.security.domain.exception.TooManyAttemptsException;
 import com.lavarapido.security.domain.exception.UserNotFoundException;
+import com.lavarapido.security.domain.model.AllowedEmailDomains;
 import com.lavarapido.security.domain.model.EmailAddress;
 import com.lavarapido.security.domain.model.UserAccount;
 import com.lavarapido.security.domain.port.in.ChangeEmailUseCase;
 import com.lavarapido.security.domain.port.in.UserAccountView;
 import com.lavarapido.security.domain.port.out.DomainEventPublisher;
-import com.lavarapido.security.domain.port.out.PasswordHasher;
 import com.lavarapido.security.domain.port.out.UserAccountRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,30 +23,37 @@ import java.time.Clock;
 public class EmailChangeService implements ChangeEmailUseCase {
 
     private final UserAccountRepository accounts;
-    private final PasswordHasher passwordHasher;
+    private final CurrentPasswordVerifier currentPassword;
     private final DomainEventPublisher events;
     private final Clock clock;
+    private final AllowedEmailDomains allowedDomains;
 
-    public EmailChangeService(UserAccountRepository accounts, PasswordHasher passwordHasher,
-                              DomainEventPublisher events, Clock clock) {
+    public EmailChangeService(UserAccountRepository accounts, CurrentPasswordVerifier currentPassword,
+                              DomainEventPublisher events, Clock clock, AllowedEmailDomains allowedDomains) {
         this.accounts = accounts;
-        this.passwordHasher = passwordHasher;
+        this.currentPassword = currentPassword;
         this.events = events;
         this.clock = clock;
+        this.allowedDomains = allowedDomains;
     }
 
     @Override
+    @Transactional(noRollbackFor = {IncorrectCurrentPasswordException.class, TooManyAttemptsException.class})
     public UserAccountView changeEmail(ChangeEmailCommand command) {
         UserAccount account = accounts.findById(command.userId()).orElseThrow(UserNotFoundException::new);
         EmailAddress newEmail = EmailAddress.of(command.newEmail());
-
-        // la contraseña protege la cuenta si alguien encuentra la sesión abierta
-        if (!passwordHasher.matches(command.currentPassword(), account.passwordHash())) {
-            throw new IncorrectCurrentPasswordException();
+        // mismo correo (quizá con otras mayúsculas): no hay nada que cambiar. El dominio solo se exige a
+        // un correo nuevo: una cuenta antigua que no es de gmail.com puede guardar el perfil sin cambiarlo (A-01)
+        boolean unchanged = newEmail.equals(account.username());
+        if (!unchanged) {
+            newEmail.requireDomainIn(allowedDomains);
         }
 
-        // mismo correo (quizá con otras mayúsculas): no hay nada que cambiar
-        if (newEmail.equals(account.username())) {
+        // la contraseña protege la cuenta si alguien encuentra la sesión abierta; los errores cuentan
+        // en el bloqueo de la cuenta (SEC-12)
+        currentPassword.verify(account, command.currentPassword());
+
+        if (unchanged) {
             return UserAccountView.from(account);
         }
 
