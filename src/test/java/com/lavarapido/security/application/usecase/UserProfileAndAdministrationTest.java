@@ -299,6 +299,21 @@ class UserProfileAndAdministrationTest {
         }
 
         @Test
+        void anOldAccountOutsideTheAllowedDomainsKeepsItsEmailButCannotMoveToAnother() {
+            // A-01: la cuenta se abrió cuando se aceptaba cualquier dominio
+            long oldId = new AccountRegistrationService(accounts, hasher, new PasswordPolicy(), events, clock,
+                    AllowedEmailDomains.parse("gmail.com,hotmail.com"))
+                    .createAccount(new CreateUserAccountCommand("80000004", "Rosa", "Díaz", "rosa@hotmail.com", null,
+                            "Lavado2026!", Set.of(RoleCode.CLIENT))).id();
+
+            UserAccountView same = service.changeEmail(new ChangeEmailCommand(oldId, "Rosa@Hotmail.com", "Lavado2026!"));
+
+            assertThat(same.email()).isEqualTo("rosa@hotmail.com");
+            assertThatThrownBy(() -> service.changeEmail(new ChangeEmailCommand(oldId, "rosa2@hotmail.com", "Lavado2026!")))
+                    .isInstanceOf(InvalidValueException.class).extracting("code").isEqualTo("EMAIL_DOMAIN_NOT_ALLOWED");
+        }
+
+        @Test
         void cannotTakeAnEmailThatBelongsToSomeoneElse() {
             registration.register(new RegisterUserCommand("80000001", "Luis", "Gómez", "luis@gmail.com", null,
                     "Lavado2026!"));

@@ -41,14 +41,19 @@ public class EmailChangeService implements ChangeEmailUseCase {
     @Transactional(noRollbackFor = {IncorrectCurrentPasswordException.class, TooManyAttemptsException.class})
     public UserAccountView changeEmail(ChangeEmailCommand command) {
         UserAccount account = accounts.findById(command.userId()).orElseThrow(UserNotFoundException::new);
-        EmailAddress newEmail = EmailAddress.of(command.newEmail()).requireDomainIn(allowedDomains);
+        EmailAddress newEmail = EmailAddress.of(command.newEmail());
+        // mismo correo (quizá con otras mayúsculas): no hay nada que cambiar. El dominio solo se exige a
+        // un correo nuevo: una cuenta antigua que no es de gmail.com puede guardar el perfil sin cambiarlo (A-01)
+        boolean unchanged = newEmail.equals(account.username());
+        if (!unchanged) {
+            newEmail.requireDomainIn(allowedDomains);
+        }
 
         // la contraseña protege la cuenta si alguien encuentra la sesión abierta; los errores cuentan
         // en el bloqueo de la cuenta (SEC-12)
         currentPassword.verify(account, command.currentPassword());
 
-        // mismo correo (quizá con otras mayúsculas): no hay nada que cambiar
-        if (newEmail.equals(account.username())) {
+        if (unchanged) {
             return UserAccountView.from(account);
         }
 
