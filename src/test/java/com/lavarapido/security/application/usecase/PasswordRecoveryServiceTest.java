@@ -94,6 +94,30 @@ class PasswordRecoveryServiceTest {
     }
 
     @Test
+    void anUnknownEmailCostsTheSameHashAsAKnownOne() {
+        // SEC-04: el BCrypt del código es lo lento; si solo se hiciera con cuentas reales, el tiempo las delataría
+        int[] hashes = {0};
+        PlainPasswordHasher counting = new PlainPasswordHasher() {
+            @Override
+            public com.lavarapido.security.domain.model.HashedPassword hash(String raw) {
+                hashes[0]++;
+                return super.hash(raw);
+            }
+        };
+        PasswordRecoveryService timed = new PasswordRecoveryService(accounts, tokens, counting, new PasswordPolicy(),
+                new PasswordRecoveryPolicy(Duration.ofMinutes(15), 3), codes, notifier,
+                new InMemoryResetAttemptCounter(), events, lockouts, sessions, clock);
+
+        timed.requestReset(new RequestPasswordResetCommand(EMAIL, null));
+        assertThat(hashes[0]).isEqualTo(1);
+        timed.requestReset(new RequestPasswordResetCommand("nadie@gmail.com", null));
+        timed.requestReset(new RequestPasswordResetCommand("not-an-email", null));
+
+        assertThat(hashes[0]).isEqualTo(3);
+        assertThat(notifier.sent).isEqualTo(1);
+    }
+
+    @Test
     void aCodeCannotBeUsedTwice() {
         service.requestReset(new RequestPasswordResetCommand(EMAIL, null));
         service.resetPassword(new ResetPasswordCommand(EMAIL, "123456", "Nueva2026!"));

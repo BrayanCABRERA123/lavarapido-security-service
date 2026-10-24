@@ -79,7 +79,14 @@ public class PasswordRecoveryService
 
     @Override
     public void requestReset(RequestPasswordResetCommand command) {
-        findActiveAccount(command.email()).ifPresent(account -> {
+        Optional<UserAccount> found = findActiveAccount(command.email());
+        if (found.isEmpty()) {
+            // SEC-04: sin cuenta igual se paga el BCrypt de un código (lo lento; el correo sale en otro
+            // hilo), así el tiempo de respuesta no revela qué correos tienen cuenta
+            passwordHasher.hash(codeGenerator.generate());
+            return;
+        }
+        found.ifPresent(account -> {
             Instant now = clock.instant();
 
             // Solo vale el código más nuevo: pedir otro quema los anteriores.
