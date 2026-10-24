@@ -101,13 +101,13 @@ app:
   internal:
     # llave que comparten los servicios para /internal/** (X-Internal-Key). Vacía: rutas cerradas
     api-key: ${INTERNAL_API_KEY:}
-  # primer administrador de una instalación nueva (producción). Solo se usa si no hay ningún
-  # administrador; vacío: no se crea nada (en desarrollo lo crea DevDataSeeder)
   # SOLO perfil dev (DevDataSeeder): contraseñas de las cuentas demo; vacía = esa cuenta no se crea
   demo:
     admin-password: ${DEMO_ADMIN_PASSWORD:}
     operator-password: ${DEMO_OPERATOR_PASSWORD:}
     client-password: ${DEMO_CLIENT_PASSWORD:}
+  # primer administrador de una instalación nueva (producción). Solo se usa si no hay ningún
+  # administrador; vacío: no se crea nada (en desarrollo lo crea DevDataSeeder)
   bootstrap-admin:
     email: ${ADMIN_EMAIL:}
     password: ${ADMIN_PASSWORD:}
