@@ -12,7 +12,7 @@ Needs the shared database from the `lavarapido-infra` repository, cloned next to
 cd ../lavarapido-infra && docker compose up -d     # first time: cp .env.example .env
 cd ../security-service
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev   # Windows: .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=dev"
-./mvnw verify                                       # 171 tests on 2026-10-23 (no database needed)
+./mvnw verify                                       # 181 tests on 2026-10-24 (no database needed)
 ```
 
 Secrets are read from `../lavarapido-infra/.env`; a `.env` in this folder overrides it.
