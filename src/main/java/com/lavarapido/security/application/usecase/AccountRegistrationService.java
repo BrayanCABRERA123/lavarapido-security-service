@@ -1,6 +1,7 @@
 package com.lavarapido.security.application.usecase;
 
 import com.lavarapido.security.domain.event.UserRegistered;
+import com.lavarapido.security.domain.exception.ConsentRequiredException;
 import com.lavarapido.security.domain.exception.DocumentAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.EmailAlreadyRegisteredException;
 import com.lavarapido.security.domain.exception.InvalidValueException;
@@ -53,9 +54,13 @@ public class AccountRegistrationService implements RegisterUserUseCase, CreateUs
 
     @Override
     public UserAccountView register(RegisterUserCommand command) {
+        // SEC-07 (Ley 1581): sin las dos casillas no hay cuenta; la web y la app ya las exigen, aquí
+        // se exige también para quien llame a la API directamente
+        if (!command.acceptsTerms() || !command.acceptsDataPolicy()) {
+            throw new ConsentRequiredException();
+        }
         UserAccount account = open(command.documentNumber(), command.firstName(), command.lastName(),
-                command.email(), command.phone(), command.password(), Set.of(RoleCode.CLIENT), false,
-                command.acceptsTerms() && command.acceptsDataPolicy());
+                command.email(), command.phone(), command.password(), Set.of(RoleCode.CLIENT), false, true);
         return UserAccountView.from(account);
     }
 

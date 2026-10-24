@@ -57,7 +57,7 @@ class PasswordRecoveryServiceTest {
     void registerAna() {
         anaId = new AccountRegistrationService(accounts, hasher, new PasswordPolicy(), new RecordingEventPublisher(),
                 clock, AllowedEmailDomains.parse("gmail.com"))
-                .register(new RegisterUserCommand("1023456789", "Ana", "Pérez", EMAIL, null, "Lavado2026!"))
+                .register(new RegisterUserCommand("1023456789", "Ana", "Pérez", EMAIL, null, "Lavado2026!", true, true))
                 .id();
     }
 
