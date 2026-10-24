@@ -304,6 +304,29 @@ class ApiSecurityWebTest {
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "CLIENT, GET, /api/v1/admin/users",
+            "OPERATOR, GET, /api/v1/admin/users",
+            "CLIENT, POST, /api/v1/admin/users",
+            "OPERATOR, POST, /api/v1/admin/users",
+            "CLIENT, PATCH, /api/v1/admin/users/2/status",
+            "OPERATOR, PATCH, /api/v1/admin/users/2/status",
+            "CLIENT, GET, /api/v1/admin/roles-permissions",
+            "OPERATOR, GET, /api/v1/admin/roles-permissions",
+            "CLIENT, PUT, /api/v1/admin/roles-permissions/OPERATOR",
+            "OPERATOR, PUT, /api/v1/admin/roles-permissions/OPERATOR"
+    })
+    void everyAdminRouteIsForbiddenToOtherRoles(String role, String method, String path) throws Exception {
+        // F-04: ninguna ruta de administración responde a un cliente ni a un operario (403)
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .request(org.springframework.http.HttpMethod.valueOf(method), path)
+                        .header("Authorization", "Bearer " + validToken(List.of(role)))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
     @Test
     void administrationIsAllowedToAdministrators() throws Exception {
         given(listAccounts.listAccounts(any())).willReturn(new PageResult<>(List.of(ANA), 0, 20, 1));
