@@ -6,15 +6,25 @@ import com.lavarapido.security.domain.port.out.PasswordResetTokenRepository;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public class InMemoryPasswordResetTokenRepository implements PasswordResetTokenRepository {
 
     private final Map<Long, PasswordResetToken> tokens = new LinkedHashMap<>();
     private long nextId = 1;
+    /** usuarios bloqueados en la transacción actual; buscar el último código sin bloquear se anota en unlockedReads */
+    public final Set<Long> locked = new HashSet<>();
+    public int unlockedReads;
+
+    @Override
+    public void lockUser(long userId) {
+        locked.add(userId);
+    }
 
     @Override
     public PasswordResetToken save(PasswordResetToken token) {
@@ -34,7 +44,17 @@ public class InMemoryPasswordResetTokenRepository implements PasswordResetTokenR
 
     @Override
     public Optional<PasswordResetToken> findLatestRedeemableByUserId(long userId, Instant now) {
+        if (!locked.contains(userId)) {
+            unlockedReads++;
+        }
         return findRedeemableByUserId(userId, now).stream()
+                .max(Comparator.comparing(PasswordResetToken::requestedAt).thenComparing(PasswordResetToken::id));
+    }
+
+    @Override
+    public Optional<PasswordResetToken> findLatestByUserId(long userId) {
+        return tokens.values().stream()
+                .filter(token -> token.userId() == userId)
                 .max(Comparator.comparing(PasswordResetToken::requestedAt).thenComparing(PasswordResetToken::id));
     }
 

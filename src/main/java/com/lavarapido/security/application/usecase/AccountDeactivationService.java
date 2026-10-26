@@ -3,12 +3,12 @@ package com.lavarapido.security.application.usecase;
 import com.lavarapido.security.domain.event.AccountDeactivated;
 import com.lavarapido.security.domain.exception.CannotDisableOwnAccountException;
 import com.lavarapido.security.domain.exception.IncorrectCurrentPasswordException;
+import com.lavarapido.security.domain.exception.TooManyAttemptsException;
 import com.lavarapido.security.domain.exception.UserNotFoundException;
 import com.lavarapido.security.domain.model.RoleCode;
 import com.lavarapido.security.domain.model.UserAccount;
 import com.lavarapido.security.domain.port.in.DeactivateOwnAccountUseCase;
 import com.lavarapido.security.domain.port.out.DomainEventPublisher;
-import com.lavarapido.security.domain.port.out.PasswordHasher;
 import com.lavarapido.security.domain.port.out.UserAccountRepository;
 import com.lavarapido.security.domain.port.out.UserSessionRepository;
 import org.springframework.stereotype.Service;
@@ -24,20 +24,22 @@ public class AccountDeactivationService implements DeactivateOwnAccountUseCase {
 
     private final UserAccountRepository accounts;
     private final UserSessionRepository sessions;
-    private final PasswordHasher passwordHasher;
+    private final CurrentPasswordVerifier currentPassword;
     private final DomainEventPublisher events;
     private final Clock clock;
 
     public AccountDeactivationService(UserAccountRepository accounts, UserSessionRepository sessions,
-                                      PasswordHasher passwordHasher, DomainEventPublisher events, Clock clock) {
+                                      CurrentPasswordVerifier currentPassword, DomainEventPublisher events,
+                                      Clock clock) {
         this.accounts = accounts;
         this.sessions = sessions;
-        this.passwordHasher = passwordHasher;
+        this.currentPassword = currentPassword;
         this.events = events;
         this.clock = clock;
     }
 
     @Override
+    @Transactional(noRollbackFor = {IncorrectCurrentPasswordException.class, TooManyAttemptsException.class})
     public void deactivateOwnAccount(DeactivateOwnAccountCommand command) {
         UserAccount account = accounts.findById(command.userId()).orElseThrow(UserNotFoundException::new);
 
@@ -46,10 +48,9 @@ public class AccountDeactivationService implements DeactivateOwnAccountUseCase {
             throw new CannotDisableOwnAccountException();
         }
 
-        // se pide la contraseña para que nadie cierre la cuenta desde una sesión que quedó abierta
-        if (!passwordHasher.matches(command.currentPassword(), account.passwordHash())) {
-            throw new IncorrectCurrentPasswordException();
-        }
+        // se pide la contraseña para que nadie cierre la cuenta desde una sesión que quedó abierta; los
+        // errores cuentan en el bloqueo de la cuenta (SEC-12)
+        currentPassword.verify(account, command.currentPassword());
 
         Instant now = clock.instant();
         account.deactivate();

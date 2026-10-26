@@ -12,6 +12,7 @@ import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -35,6 +36,8 @@ import java.util.UUID;
  * (el Outbox que evitaría perderlo no está adoptado todavía, ADR-004).
  */
 @Component
+// @Primary solo desambigua para el analisis estatico: la pareja con @ConditionalOnProperty opuesta nunca se carga a la vez
+@Primary
 @ConditionalOnProperty(prefix = "app.messaging", name = "enabled", havingValue = "true")
 class RabbitDomainEventPublisher implements DomainEventPublisher {
 

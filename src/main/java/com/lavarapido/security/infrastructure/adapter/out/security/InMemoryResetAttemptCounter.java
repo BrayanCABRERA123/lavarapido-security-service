@@ -13,6 +13,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * Contador de intentos fallidos en memoria. {@code password_reset_token} no tiene columna de intentos
  * y el esquema compartido no es nuestro para cambiarlo, así que esto basta con una sola instancia. Con más
  * de una réplica debe pasar a Redis (la caché del gateway) o a una columna nueva.
+ *
+ * SEC-05: los intentos de un mismo usuario llegan aquí uno detrás del otro (candado por usuario en
+ * PasswordRecoveryService). Si el servicio se reinicia el conteo empieza de cero, pero el código igual
+ * vence a los 15 minutos.
  */
 @Component
 class InMemoryResetAttemptCounter implements ResetAttemptCounter {
@@ -36,6 +40,12 @@ class InMemoryResetAttemptCounter implements ResetAttemptCounter {
         attemptsByToken.values().removeIf(attempts -> attempts.firstFailureAt().plus(RETENTION).isBefore(now));
         return attemptsByToken.merge(tokenId, new Attempts(1, now),
                 (current, ignored) -> new Attempts(current.failures() + 1, current.firstFailureAt())).failures();
+    }
+
+    @Override
+    public int failures(long tokenId) {
+        Attempts attempts = attemptsByToken.get(tokenId);
+        return attempts == null ? 0 : attempts.failures();
     }
 
     @Override

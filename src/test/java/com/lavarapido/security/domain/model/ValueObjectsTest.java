@@ -36,6 +36,39 @@ class ValueObjectsTest {
     }
 
     @Nested
+    class AllowedEmailDomainsTest {
+
+        private final AllowedEmailDomains gmailOnly = AllowedEmailDomains.parse("gmail.com");
+
+        @Test
+        void aGmailAddressIsAllowed() {
+            assertThat(EmailAddress.of("Ana@Gmail.com").requireDomainIn(gmailOnly).value()).isEqualTo("ana@gmail.com");
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"ana@hotmail.com", "ana@gmail.com.co", "ana@mail.gmail.com", "ana@outlook.es"})
+        void otherDomainsAreRejectedWithTheirOwnCode(String raw) {
+            // A-01: la regla "solo @gmail.com" la valida el servidor, no solo las pantallas
+            assertThatThrownBy(() -> EmailAddress.of(raw).requireDomainIn(gmailOnly))
+                    .isInstanceOf(InvalidValueException.class)
+                    .extracting("code").isEqualTo("EMAIL_DOMAIN_NOT_ALLOWED");
+        }
+
+        @Test
+        void theListIsConfigurableAndIgnoresCaseAndSpaces() {
+            AllowedEmailDomains two = AllowedEmailDomains.parse(" Gmail.com , outlook.com ,");
+
+            assertThat(two.domains()).containsExactlyInAnyOrder("gmail.com", "outlook.com");
+            assertThat(EmailAddress.of("luis@outlook.com").requireDomainIn(two).value()).isEqualTo("luis@outlook.com");
+        }
+
+        @Test
+        void anEmptyListFallsBackToGmail() {
+            assertThat(AllowedEmailDomains.parse("  ").domains()).containsExactly("gmail.com");
+        }
+    }
+
+    @Nested
     class DocumentNumberTest {
 
         @Test
